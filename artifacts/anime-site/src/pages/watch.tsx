@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, AlertCircle, Play, Tv } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, AlertCircle, Play, Tv, Captions } from "lucide-react";
 import {
   useGetAnimeEpisode,
   getGetAnimeEpisodeQueryKey,
@@ -11,16 +11,64 @@ import {
 } from "@workspace/api-client-react";
 import type { AnimeCard, FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-type Lang = "sub" | "dub";
-const LANG_KEY = "animesalt_lang";
+type AudioLang = "japanese" | "english" | "hindi" | "tamil" | "malayalam";
+
+const LANG_KEY = "animesalt_audio";
+const SUB_KEY = "animesalt_sub";
+
+const LANGUAGES: { value: AudioLang; label: string }[] = [
+  { value: "japanese", label: "Japanese" },
+  { value: "english", label: "English" },
+  { value: "hindi", label: "Hindi" },
+  { value: "tamil", label: "Tamil" },
+  { value: "malayalam", label: "Malayalam" },
+];
+
+function LanguageBar({
+  audio,
+  sub,
+  onAudio,
+  onSub,
+}: {
+  audio: AudioLang;
+  sub: boolean;
+  onAudio: (l: AudioLang) => void;
+  onSub: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2" data-testid="language-bar">
+      {LANGUAGES.map((lang) => (
+        <button
+          key={lang.value}
+          onClick={() => onAudio(lang.value)}
+          data-testid={`button-lang-${lang.value}`}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 border ${
+            audio === lang.value
+              ? "bg-primary text-primary-foreground border-primary shadow-[0_0_12px_-3px_rgba(139,92,246,0.7)]"
+              : "bg-white/5 text-white/50 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/10"
+          }`}
+        >
+          {lang.label}
+        </button>
+      ))}
+
+      {/* Sub toggle */}
+      <button
+        onClick={() => onSub(!sub)}
+        data-testid="button-sub-toggle"
+        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 border ${
+          sub
+            ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
+            : "bg-white/5 text-white/40 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/10"
+        }`}
+      >
+        <Captions className="w-3.5 h-3.5" />
+        Sub
+      </button>
+    </div>
+  );
+}
 
 function RecommendationCard({ anime }: { anime: AnimeCard }) {
   return (
@@ -100,48 +148,45 @@ export default function Watch() {
   const [, params] = useRoute("/watch/:episodeId");
   const baseEpisodeId = params?.episodeId ?? "";
 
-  const [lang, setLang] = useState<Lang>(() => {
-    try { return (localStorage.getItem(LANG_KEY) as Lang) ?? "sub"; } catch { return "sub"; }
+  const [audioLang, setAudioLang] = useState<AudioLang>(() => {
+    try { return (localStorage.getItem(LANG_KEY) as AudioLang) ?? "japanese"; } catch { return "japanese"; }
+  });
+  const [subEnabled, setSubEnabled] = useState(() => {
+    try { return localStorage.getItem(SUB_KEY) !== "false"; } catch { return true; }
   });
 
   useEffect(() => {
-    try { localStorage.setItem(LANG_KEY, lang); } catch { /* ignore */ }
-  }, [lang]);
+    try { localStorage.setItem(LANG_KEY, audioLang); } catch { /* ignore */ }
+  }, [audioLang]);
 
-  // Parse slug and season/episode from ID like "naruto-shippuden-2x14"
+  useEffect(() => {
+    try { localStorage.setItem(SUB_KEY, String(subEnabled)); } catch { /* ignore */ }
+  }, [subEnabled]);
+
+  // Non-Japanese langs map to the dub track (API only has one alternate track)
+  const isDub = audioLang !== "japanese";
+  const episodeId = isDub ? `${baseEpisodeId}--dub` : baseEpisodeId;
+
   const slugMatch = baseEpisodeId.match(/^(.*?)-(\d+)x(\d+)$/);
   const seriesSlug = slugMatch ? slugMatch[1] : "";
   const currentSeason = slugMatch ? slugMatch[2] : "1";
-
-  // Use only the first word of the slug as search keyword — broader results
   const recKeyword = seriesSlug.split("-")[0] ?? "";
-
-  const episodeId = lang === "dub" ? `${baseEpisodeId}--dub` : baseEpisodeId;
 
   const { data: episodeResponse, isLoading, isError } = useGetAnimeEpisode(episodeId, {
     query: { enabled: !!episodeId, queryKey: getGetAnimeEpisodeQueryKey(episodeId) },
   });
 
   const { data: seriesData } = useGetAnimeSeries(seriesSlug, {
-    query: {
-      enabled: !!seriesSlug,
-      queryKey: getGetAnimeSeriesQueryKey(seriesSlug),
-    },
+    query: { enabled: !!seriesSlug, queryKey: getGetAnimeSeriesQueryKey(seriesSlug) },
   });
 
   const { data: recData } = useSearchAnime(
     { q: recKeyword },
-    {
-      query: {
-        enabled: recKeyword.length >= 2,
-        queryKey: getSearchAnimeQueryKey({ q: recKeyword }),
-      },
-    }
+    { query: { enabled: recKeyword.length >= 2, queryKey: getSearchAnimeQueryKey({ q: recKeyword }) } }
   );
 
   const episode = episodeResponse?.data;
 
-  // Episodes for the current season
   const seasonEpisodes: FlatEpisode[] = (seriesData?.data?.episodes ?? []).filter(
     (ep) => ep.season === currentSeason
   );
@@ -152,15 +197,13 @@ export default function Watch() {
 
   const goToEpisode = (id: string) => setLocation(`/watch/${id}`);
 
+  const dubUnavailable = isDub && (isError || !episode?.video_player);
+
   return (
     <div className="min-h-screen bg-black text-foreground flex flex-col">
-      {/* Header */}
       <header className="px-4 md:px-6 py-4 flex items-center z-10">
         <Link href={seriesSlug ? `/series/${seriesSlug}` : "/"} data-testid="link-back">
-          <Button
-            variant="ghost"
-            className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
-          >
+          <Button variant="ghost" className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline text-sm">Back to Series</span>
           </Button>
@@ -182,21 +225,21 @@ export default function Watch() {
             <div className="w-full aspect-video bg-white/5 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center text-center p-6 space-y-3">
               <AlertCircle className="w-12 h-12 text-white/20" />
               <h2 className="text-lg font-semibold text-white">
-                {lang === "dub" ? "Dub not available" : "Video unavailable"}
+                {dubUnavailable ? `${LANGUAGES.find(l => l.value === audioLang)?.label} audio not available` : "Video unavailable"}
               </h2>
               <p className="max-w-sm text-sm text-muted-foreground">
-                {lang === "dub"
-                  ? "This episode may not have an English dub. Try switching to Subbed."
+                {dubUnavailable
+                  ? "This episode may not have audio in that language. Try Japanese or switch Sub on."
                   : "The player link couldn't be loaded. Try another episode."}
               </p>
-              {lang === "dub" && (
+              {dubUnavailable && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="border-white/20 hover:bg-white/10 mt-1"
-                  onClick={() => setLang("sub")}
+                  onClick={() => setAudioLang("japanese")}
                 >
-                  Switch to Subbed
+                  Switch to Japanese
                 </Button>
               )}
             </div>
@@ -216,11 +259,11 @@ export default function Watch() {
           )}
         </div>
 
-        {/* Controls: Prev | Language dropdown | Next */}
-        <div className="w-full mt-4 flex items-center justify-between gap-4 px-1">
+        {/* Nav row */}
+        <div className="w-full mt-4 flex items-center justify-between gap-3 px-1">
           <Button
             variant="ghost"
-            className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
+            className="gap-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
             disabled={!episode?.prev_episode_id || isLoading}
             onClick={() => episode?.prev_episode_id && goToEpisode(episode.prev_episode_id)}
             data-testid="button-prev-episode"
@@ -229,30 +272,9 @@ export default function Watch() {
             <span className="hidden sm:inline text-sm">Previous</span>
           </Button>
 
-          {/* Language select */}
-          <Select
-            value={lang}
-            onValueChange={(v) => setLang(v as Lang)}
-          >
-            <SelectTrigger
-              className="w-36 bg-white/8 border-white/15 text-white rounded-full h-9 focus:ring-primary/50"
-              data-testid="select-language"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#111] border-white/10">
-              <SelectItem value="sub" className="text-white/80 hover:text-white focus:bg-white/10 focus:text-white">
-                Subbed
-              </SelectItem>
-              <SelectItem value="dub" className="text-white/80 hover:text-white focus:bg-white/10 focus:text-white">
-                Dubbed
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
           <Button
             variant="ghost"
-            className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
+            className="gap-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
             disabled={!episode?.next_episode_id || isLoading}
             onClick={() => episode?.next_episode_id && goToEpisode(episode.next_episode_id)}
             data-testid="button-next-episode"
@@ -262,11 +284,21 @@ export default function Watch() {
           </Button>
         </div>
 
-        {/* Season episodes list */}
+        {/* Language + Sub bar */}
+        <div className="w-full mt-4 py-3 px-4 bg-white/3 border border-white/5 rounded-2xl">
+          <LanguageBar
+            audio={audioLang}
+            sub={subEnabled}
+            onAudio={setAudioLang}
+            onSub={setSubEnabled}
+          />
+        </div>
+
+        {/* Season episodes */}
         {seasonEpisodes.length > 0 && (
           <div className="w-full mt-8 space-y-4">
-            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
-              Season {currentSeason} Episodes
+            <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest">
+              Season {currentSeason} — Episodes
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[480px] overflow-y-auto pr-1 scrollbar-none">
               {seasonEpisodes.map((ep) => (
@@ -284,13 +316,10 @@ export default function Watch() {
         {/* Recommendations */}
         {recommendations.length > 0 && (
           <div className="w-full mt-10 space-y-4">
-            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+            <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest">
               You Might Also Like
             </h2>
-            <div
-              className="flex gap-4 overflow-x-auto pb-3 scrollbar-none"
-              data-testid="recommendations-row"
-            >
+            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" data-testid="recommendations-row">
               {recommendations.map((anime) => (
                 <RecommendationCard key={anime.slug} anime={anime} />
               ))}
