@@ -18,7 +18,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -88,7 +87,7 @@ paths:
     get:
       operationId: getAnimeEpisode
       tags: [anime]
-      summary: Get episode streaming data
+      summary: Get episode streaming data. Append --dub to episodeId for dubbed version.
       parameters:
         - in: path
           name: episodeId
@@ -186,34 +185,25 @@ components:
         - query
         - results
 
-    AnimeEpisode:
+    FlatEpisode:
       type: object
       properties:
         id:
           type: string
+        number:
+          type: string
         title:
           type: ["string", "null"]
-        season:
-          type: ["integer", "null"]
-        number:
-          type: ["integer", "null"]
         url:
           type: ["string", "null"]
+        thumbnail:
+          type: ["string", "null"]
+        season:
+          type: string
       required:
         - id
-
-    AnimeSeason:
-      type: object
-      properties:
-        number:
-          type: integer
-        episodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/AnimeEpisode"
-      required:
         - number
-        - episodes
+        - season
 
     SeriesData:
       type: object
@@ -221,8 +211,8 @@ components:
         title:
           type: string
         slug:
-          type: string
-        image:
+          type: ["string", "null"]
+        thumbnail:
           type: ["string", "null"]
         description:
           type: ["string", "null"]
@@ -230,15 +220,15 @@ components:
           type: array
           items:
             type: string
-        seasons:
+        is_movie:
+          type: ["boolean", "null"]
+        episodes:
           type: array
           items:
-            $ref: "#/components/schemas/AnimeSeason"
-        total_episodes:
-          type: ["integer", "null"]
+            $ref: "#/components/schemas/FlatEpisode"
       required:
         - title
-        - slug
+        - episodes
 
     SeriesResponse:
       type: object

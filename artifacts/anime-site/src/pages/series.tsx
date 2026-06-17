@@ -1,9 +1,25 @@
 import { useRoute, Link } from "wouter";
 import { ArrowLeft, Play, ListVideo } from "lucide-react";
 import { useGetAnimeSeries, getGetAnimeSeriesQueryKey } from "@workspace/api-client-react";
+import type { FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+
+type GroupedSeason = {
+  number: string;
+  episodes: FlatEpisode[];
+};
+
+function groupBySeason(episodes: FlatEpisode[]): GroupedSeason[] {
+  const map = new Map<string, GroupedSeason>();
+  for (const ep of episodes) {
+    const s = ep.season ?? "1";
+    if (!map.has(s)) map.set(s, { number: s, episodes: [] });
+    map.get(s)!.episodes.push(ep);
+  }
+  return Array.from(map.values()).sort((a, b) => Number(a.number) - Number(b.number));
+}
 
 export default function Series() {
   const [, params] = useRoute("/series/:slug");
@@ -20,12 +36,10 @@ export default function Series() {
       <div className="min-h-screen bg-background">
         <div className="h-[40vh] w-full bg-white/5 animate-pulse" />
         <div className="max-w-6xl mx-auto px-6 -mt-32 relative z-10 flex flex-col md:flex-row gap-8 pb-20">
-          <div className="w-64 flex-shrink-0">
-            <Skeleton className="w-full aspect-[2/3] rounded-xl shadow-2xl border-4 border-background bg-white/5" />
-          </div>
-          <div className="flex-1 mt-8 md:mt-32 space-y-6">
+          <Skeleton className="w-48 md:w-64 aspect-[2/3] flex-shrink-0 rounded-2xl bg-white/5" />
+          <div className="flex-1 mt-8 md:mt-32 space-y-5">
             <Skeleton className="h-12 w-3/4 bg-white/5" />
-            <Skeleton className="h-6 w-1/4 bg-white/5" />
+            <Skeleton className="h-5 w-1/4 bg-white/5" />
             <Skeleton className="h-4 w-full bg-white/5" />
             <Skeleton className="h-4 w-2/3 bg-white/5" />
           </div>
@@ -43,14 +57,13 @@ export default function Series() {
         <div className="space-y-2">
           <h2 className="text-2xl font-bold">Series data unavailable</h2>
           <p className="text-muted-foreground max-w-sm text-sm">
-            The series info couldn&apos;t be loaded from the API. You can still try watching from episode 1.
+            Couldn&apos;t load series info. You can still try watching from episode 1.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Link href={`/watch/${slug}-1x1`}>
             <Button size="lg" className="rounded-full px-8 gap-2 font-semibold" data-testid="button-play-episode1">
-              <Play className="w-4 h-4 fill-current" />
-              Play Episode 1
+              <Play className="w-4 h-4 fill-current" /> Play Episode 1
             </Button>
           </Link>
           <Link href="/">
@@ -63,21 +76,21 @@ export default function Series() {
     );
   }
 
-  const firstEpisode = series.seasons?.[0]?.episodes?.[0];
+  const seasons = groupBySeason(series.episodes ?? []);
+  const firstEp = seasons[0]?.episodes[0];
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
-      {/* Hero */}
+      {/* Hero backdrop */}
       <div className="relative h-[40vh] md:h-[50vh] w-full overflow-hidden">
-        {series.image && (
+        {series.thumbnail && (
           <div
             className="absolute inset-0 bg-cover bg-center scale-110"
-            style={{ backgroundImage: `url(${series.image})` }}
+            style={{ backgroundImage: `url(${series.thumbnail})` }}
           />
         )}
         <div className="absolute inset-0 bg-background/70 backdrop-blur-2xl" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-
         <Link href="/" className="absolute top-6 left-6 z-20" data-testid="link-back">
           <Button
             variant="ghost"
@@ -89,20 +102,19 @@ export default function Series() {
         </Link>
       </div>
 
+      {/* Poster + info */}
       <div className="max-w-6xl mx-auto px-6 -mt-36 md:-mt-52 relative z-10 flex flex-col md:flex-row gap-8">
-        {/* Poster */}
         <div className="w-44 md:w-64 flex-shrink-0 mx-auto md:mx-0">
           <div
             className="aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10 bg-white/5"
             data-testid="img-series-poster"
           >
-            {series.image && (
-              <img src={series.image} alt={series.title} className="w-full h-full object-cover" />
+            {series.thumbnail && (
+              <img src={series.thumbnail} alt={series.title} className="w-full h-full object-cover" />
             )}
           </div>
         </div>
 
-        {/* Info */}
         <div className="flex-1 md:mt-36 space-y-5 text-center md:text-left">
           <h1
             className="text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight"
@@ -112,10 +124,15 @@ export default function Series() {
           </h1>
 
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-            {series.total_episodes && (
+            {series.episodes && series.episodes.length > 0 && (
               <Badge variant="secondary" className="bg-white/10 border-white/10 gap-1.5 py-1 text-white/70">
                 <ListVideo className="w-3.5 h-3.5" />
-                {series.total_episodes} Episodes
+                {series.episodes.length} Episodes
+              </Badge>
+            )}
+            {series.is_movie && (
+              <Badge variant="secondary" className="bg-primary/20 border-primary/30 py-1 text-primary">
+                Movie
               </Badge>
             )}
             {series.genres?.map((genre) => (
@@ -131,9 +148,9 @@ export default function Series() {
             </p>
           )}
 
-          {firstEpisode && (
+          {firstEp && (
             <div className="pt-2">
-              <Link href={`/watch/${firstEpisode.id}`}>
+              <Link href={`/watch/${firstEp.id}`}>
                 <Button
                   size="lg"
                   className="rounded-full px-8 gap-2 font-semibold shadow-[0_0_30px_-5px_rgba(139,92,246,0.6)]"
@@ -148,9 +165,9 @@ export default function Series() {
         </div>
       </div>
 
-      {/* Episodes */}
+      {/* Episodes by season */}
       <div className="max-w-6xl mx-auto px-6 mt-16 space-y-12">
-        {series.seasons?.map((season) => (
+        {seasons.map((season) => (
           <div key={season.number} className="space-y-5">
             <h3 className="text-lg font-semibold flex items-center gap-3 text-white">
               <span className="w-1 h-5 bg-primary rounded-full inline-block" />
@@ -161,9 +178,15 @@ export default function Series() {
               {season.episodes.map((ep) => (
                 <Link key={ep.id} href={`/watch/${ep.id}`} data-testid={`link-episode-${ep.id}`}>
                   <div className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-4 transition-all flex items-center gap-4 cursor-pointer">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
-                      <Play className="w-3.5 h-3.5 ml-0.5 fill-current" />
-                    </div>
+                    {ep.thumbnail ? (
+                      <div className="w-16 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+                        <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
+                        <Play className="w-3.5 h-3.5 ml-0.5 fill-current" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-muted-foreground font-medium mb-0.5">
                         Episode {ep.number}
@@ -179,7 +202,7 @@ export default function Series() {
           </div>
         ))}
 
-        {(!series.seasons || series.seasons.length === 0) && (
+        {seasons.length === 0 && (
           <div className="text-center text-muted-foreground py-16 border border-dashed border-white/10 rounded-2xl">
             No episodes available yet.
           </div>

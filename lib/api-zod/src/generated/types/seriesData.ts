@@ -5,17 +5,18 @@
  * AnimeSalt streaming API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AnimeSeason } from './animeSeason';
+import type { FlatEpisode } from './flatEpisode';
 
 export interface SeriesData {
   title: string;
-  slug: string;
   /** @nullable */
-  image?: string | null;
+  slug?: string | null;
+  /** @nullable */
+  thumbnail?: string | null;
   /** @nullable */
   description?: string | null;
   genres?: string[];
-  seasons?: AnimeSeason[];
   /** @nullable */
-  total_episodes?: number | null;
+  is_movie?: boolean | null;
+  episodes: FlatEpisode[];
 }

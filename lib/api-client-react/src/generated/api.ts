@@ -46,7 +46,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -362,7 +361,7 @@ export const getGetAnimeEpisodeUrl = (episodeId: string,) => {
 }
 
 /**
- * @summary Get episode streaming data
+ * @summary Get episode streaming data. Append --dub to episodeId for dubbed version.
  */
 export const getAnimeEpisode = async (episodeId: string, options?: RequestInit): Promise<EpisodeResponse> => {
 
@@ -409,7 +408,7 @@ export type GetAnimeEpisodeQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get episode streaming data
+ * @summary Get episode streaming data. Append --dub to episodeId for dubbed version.
  */
 
 export function useGetAnimeEpisode<TData = Awaited<ReturnType<typeof getAnimeEpisode>>, TError = ErrorType<ErrorResponse>>(

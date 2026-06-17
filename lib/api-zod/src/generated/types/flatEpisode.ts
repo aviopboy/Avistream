@@ -6,14 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AnimeEpisode {
+export interface FlatEpisode {
   id: string;
+  number: string;
   /** @nullable */
   title?: string | null;
   /** @nullable */
-  season?: number | null;
-  /** @nullable */
-  number?: number | null;
-  /** @nullable */
   url?: string | null;
+  /** @nullable */
+  thumbnail?: string | null;
+  season: string;
 }

@@ -7,11 +7,10 @@
  */
 
 export * from './animeCard';
-export * from './animeEpisode';
-export * from './animeSeason';
 export * from './episodeData';
 export * from './episodeResponse';
 export * from './errorResponse';
+export * from './flatEpisode';
 export * from './healthStatus';
 export * from './homeData';
 export * from './homeResponse';

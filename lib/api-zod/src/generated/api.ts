@@ -9,7 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -69,27 +68,25 @@ export const GetAnimeSeriesResponse = zod.object({
   "success": zod.boolean(),
   "data": zod.object({
   "title": zod.string(),
-  "slug": zod.string(),
-  "image": zod.string().nullish(),
+  "slug": zod.string().nullish(),
+  "thumbnail": zod.string().nullish(),
   "description": zod.string().nullish(),
   "genres": zod.array(zod.string()).optional(),
-  "seasons": zod.array(zod.object({
-  "number": zod.number(),
+  "is_movie": zod.boolean().nullish(),
   "episodes": zod.array(zod.object({
   "id": zod.string(),
+  "number": zod.string(),
   "title": zod.string().nullish(),
-  "season": zod.number().nullish(),
-  "number": zod.number().nullish(),
-  "url": zod.string().nullish()
+  "url": zod.string().nullish(),
+  "thumbnail": zod.string().nullish(),
+  "season": zod.string()
 }))
-})).optional(),
-  "total_episodes": zod.number().nullish()
 })
 })
 
 
 /**
- * @summary Get episode streaming data
+ * @summary Get episode streaming data. Append --dub to episodeId for dubbed version.
  */
 export const GetAnimeEpisodeParams = zod.object({
   "episodeId": zod.coerce.string()

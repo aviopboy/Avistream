@@ -36,34 +36,30 @@ export interface SearchResponse {
   results: AnimeCard[];
 }
 
-export interface AnimeEpisode {
+export interface FlatEpisode {
   id: string;
+  number: string;
   /** @nullable */
   title?: string | null;
   /** @nullable */
-  season?: number | null;
-  /** @nullable */
-  number?: number | null;
-  /** @nullable */
   url?: string | null;
-}
-
-export interface AnimeSeason {
-  number: number;
-  episodes: AnimeEpisode[];
+  /** @nullable */
+  thumbnail?: string | null;
+  season: string;
 }
 
 export interface SeriesData {
   title: string;
-  slug: string;
   /** @nullable */
-  image?: string | null;
+  slug?: string | null;
+  /** @nullable */
+  thumbnail?: string | null;
   /** @nullable */
   description?: string | null;
   genres?: string[];
-  seasons?: AnimeSeason[];
   /** @nullable */
-  total_episodes?: number | null;
+  is_movie?: boolean | null;
+  episodes: FlatEpisode[];
 }
 
 export interface SeriesResponse {
