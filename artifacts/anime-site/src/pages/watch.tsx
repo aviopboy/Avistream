@@ -6,52 +6,92 @@ import {
   getGetAnimeEpisodeQueryKey,
   useSearchAnime,
   getSearchAnimeQueryKey,
+  useGetAnimeSeries,
+  getGetAnimeSeriesQueryKey,
 } from "@workspace/api-client-react";
-import type { AnimeCard } from "@workspace/api-client-react";
+import type { AnimeCard, FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Lang = "sub" | "dub";
 const LANG_KEY = "animesalt_lang";
 
-function LangToggle({ value, onChange }: { value: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <div className="flex items-center gap-1 bg-white/8 border border-white/10 rounded-full p-1" data-testid="lang-toggle">
-      {(["sub", "dub"] as Lang[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => onChange(l)}
-          data-testid={`button-lang-${l}`}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-200 ${
-            value === l
-              ? "bg-primary text-primary-foreground shadow-md"
-              : "text-white/40 hover:text-white"
-          }`}
-        >
-          {l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function RecommendationCard({ anime }: { anime: AnimeCard }) {
   return (
     <Link href={`/series/${anime.slug}`} data-testid={`card-rec-${anime.slug}`}>
-      <div className="group flex-shrink-0 w-32 space-y-2">
-        <div className="w-32 aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/5 group-hover:border-primary/30 transition-all duration-200 group-hover:scale-[1.03] group-hover:shadow-[0_4px_24px_-6px_rgba(139,92,246,0.4)]">
+      <div className="group flex-shrink-0 w-28 space-y-2">
+        <div className="w-28 aspect-[2/3] rounded-xl overflow-hidden bg-white/5 border border-white/5 group-hover:border-primary/30 transition-all duration-200 group-hover:scale-[1.04] group-hover:shadow-[0_4px_24px_-6px_rgba(139,92,246,0.4)]">
           {anime.image ? (
-            <img src={anime.image} alt={anime.title} className="w-full h-full object-cover group-hover:opacity-80 transition-opacity" loading="lazy" />
+            <img
+              src={anime.image}
+              alt={anime.title}
+              className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+              loading="lazy"
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Tv className="w-6 h-6 text-white/20" />
             </div>
           )}
         </div>
-        <p className="text-xs text-white/60 group-hover:text-white/90 transition-colors line-clamp-2 leading-snug text-center">
+        <p className="text-xs text-white/50 group-hover:text-white/90 transition-colors line-clamp-2 leading-snug text-center">
           {anime.title}
         </p>
       </div>
     </Link>
+  );
+}
+
+function EpisodeItem({
+  ep,
+  isActive,
+  onClick,
+}: {
+  ep: FlatEpisode;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      data-testid={`button-episode-${ep.id}`}
+      className={`group w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+        isActive
+          ? "bg-primary/20 border-primary/40 text-white"
+          : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-primary/20 text-white/70 hover:text-white"
+      }`}
+    >
+      {ep.thumbnail ? (
+        <div className="w-16 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-white/5 relative">
+          <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+          {isActive && (
+            <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
+              <Play className="w-3 h-3 fill-white text-white" />
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+            isActive
+              ? "bg-primary text-primary-foreground"
+              : "bg-white/10 text-white/40 group-hover:bg-primary/20 group-hover:text-primary"
+          }`}
+        >
+          <Play className="w-3 h-3 ml-0.5 fill-current" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground mb-0.5">Ep {ep.number}</div>
+        <div className="text-sm font-medium truncate">{ep.title ?? `Episode ${ep.number}`}</div>
+      </div>
+    </button>
   );
 }
 
@@ -68,33 +108,59 @@ export default function Watch() {
     try { localStorage.setItem(LANG_KEY, lang); } catch { /* ignore */ }
   }, [lang]);
 
-  const episodeId = lang === "dub" ? `${baseEpisodeId}--dub` : baseEpisodeId;
-  const slugMatch = baseEpisodeId.match(/^(.*?)-\d+x\d+$/);
+  // Parse slug and season/episode from ID like "naruto-shippuden-2x14"
+  const slugMatch = baseEpisodeId.match(/^(.*?)-(\d+)x(\d+)$/);
   const seriesSlug = slugMatch ? slugMatch[1] : "";
+  const currentSeason = slugMatch ? slugMatch[2] : "1";
 
-  // Derive a short search keyword from the slug for recommendations
-  const recKeyword = seriesSlug.split("-").slice(0, 2).join(" ");
+  // Use only the first word of the slug as search keyword — broader results
+  const recKeyword = seriesSlug.split("-")[0] ?? "";
+
+  const episodeId = lang === "dub" ? `${baseEpisodeId}--dub` : baseEpisodeId;
 
   const { data: episodeResponse, isLoading, isError } = useGetAnimeEpisode(episodeId, {
     query: { enabled: !!episodeId, queryKey: getGetAnimeEpisodeQueryKey(episodeId) },
   });
 
+  const { data: seriesData } = useGetAnimeSeries(seriesSlug, {
+    query: {
+      enabled: !!seriesSlug,
+      queryKey: getGetAnimeSeriesQueryKey(seriesSlug),
+    },
+  });
+
   const { data: recData } = useSearchAnime(
     { q: recKeyword },
-    { query: { enabled: !!recKeyword, queryKey: getSearchAnimeQueryKey({ q: recKeyword }) } }
+    {
+      query: {
+        enabled: recKeyword.length >= 2,
+        queryKey: getSearchAnimeQueryKey({ q: recKeyword }),
+      },
+    }
   );
 
   const episode = episodeResponse?.data;
-  const recommendations = (recData?.results ?? []).filter((r) => r.slug !== seriesSlug).slice(0, 12);
+
+  // Episodes for the current season
+  const seasonEpisodes: FlatEpisode[] = (seriesData?.data?.episodes ?? []).filter(
+    (ep) => ep.season === currentSeason
+  );
+
+  const recommendations = (recData?.results ?? [])
+    .filter((r) => r.slug !== seriesSlug)
+    .slice(0, 12);
 
   const goToEpisode = (id: string) => setLocation(`/watch/${id}`);
 
   return (
     <div className="min-h-screen bg-black text-foreground flex flex-col">
-      {/* Minimal header — back button only */}
+      {/* Header */}
       <header className="px-4 md:px-6 py-4 flex items-center z-10">
         <Link href={seriesSlug ? `/series/${seriesSlug}` : "/"} data-testid="link-back">
-          <Button variant="ghost" className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full">
+          <Button
+            variant="ghost"
+            className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full"
+          >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline text-sm">Back to Series</span>
           </Button>
@@ -104,7 +170,7 @@ export default function Watch() {
         </span>
       </header>
 
-      <main className="flex-1 flex flex-col items-center w-full max-w-5xl mx-auto px-4 md:px-6 pb-16 gap-0">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-6 pb-16 flex flex-col gap-0">
         {/* Player */}
         <div className="w-full">
           {isLoading ? (
@@ -120,12 +186,17 @@ export default function Watch() {
               </h2>
               <p className="max-w-sm text-sm text-muted-foreground">
                 {lang === "dub"
-                  ? "This episode may not have an English dub. Try switching to Sub."
+                  ? "This episode may not have an English dub. Try switching to Subbed."
                   : "The player link couldn't be loaded. Try another episode."}
               </p>
               {lang === "dub" && (
-                <Button variant="outline" size="sm" className="border-white/20 hover:bg-white/10 mt-1" onClick={() => setLang("sub")}>
-                  Switch to Sub
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-white/20 hover:bg-white/10 mt-1"
+                  onClick={() => setLang("sub")}
+                >
+                  Switch to Subbed
                 </Button>
               )}
             </div>
@@ -145,7 +216,7 @@ export default function Watch() {
           )}
         </div>
 
-        {/* Controls bar: prev | lang toggle | next */}
+        {/* Controls: Prev | Language dropdown | Next */}
         <div className="w-full mt-4 flex items-center justify-between gap-4 px-1">
           <Button
             variant="ghost"
@@ -158,8 +229,26 @@ export default function Watch() {
             <span className="hidden sm:inline text-sm">Previous</span>
           </Button>
 
-          {/* Lang toggle — centred below player */}
-          <LangToggle value={lang} onChange={setLang} />
+          {/* Language select */}
+          <Select
+            value={lang}
+            onValueChange={(v) => setLang(v as Lang)}
+          >
+            <SelectTrigger
+              className="w-36 bg-white/8 border-white/15 text-white rounded-full h-9 focus:ring-primary/50"
+              data-testid="select-language"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-[#111] border-white/10">
+              <SelectItem value="sub" className="text-white/80 hover:text-white focus:bg-white/10 focus:text-white">
+                Subbed
+              </SelectItem>
+              <SelectItem value="dub" className="text-white/80 hover:text-white focus:bg-white/10 focus:text-white">
+                Dubbed
+              </SelectItem>
+            </SelectContent>
+          </Select>
 
           <Button
             variant="ghost"
@@ -173,14 +262,35 @@ export default function Watch() {
           </Button>
         </div>
 
+        {/* Season episodes list */}
+        {seasonEpisodes.length > 0 && (
+          <div className="w-full mt-8 space-y-4">
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+              Season {currentSeason} Episodes
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[480px] overflow-y-auto pr-1 scrollbar-none">
+              {seasonEpisodes.map((ep) => (
+                <EpisodeItem
+                  key={ep.id}
+                  ep={ep}
+                  isActive={ep.id === baseEpisodeId}
+                  onClick={() => goToEpisode(ep.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recommendations */}
         {recommendations.length > 0 && (
           <div className="w-full mt-10 space-y-4">
-            <h2 className="text-base font-semibold text-white/80 flex items-center gap-2">
-              <Play className="w-3.5 h-3.5 text-primary fill-current" />
-              You might also like
+            <h2 className="text-sm font-semibold text-white/60 uppercase tracking-widest">
+              You Might Also Like
             </h2>
-            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none" data-testid="recommendations-row">
+            <div
+              className="flex gap-4 overflow-x-auto pb-3 scrollbar-none"
+              data-testid="recommendations-row"
+            >
               {recommendations.map((anime) => (
                 <RecommendationCard key={anime.slug} anime={anime} />
               ))}
