@@ -70,8 +70,8 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex-shrink-0 select-none">
           <span className="text-xl font-extrabold tracking-tight" style={{ letterSpacing: "-0.5px" }}>
-            <span className="text-primary">Anime</span>
-            <span className="text-foreground">Salt</span>
+            <span className="text-primary">Avi</span>
+            <span className="text-foreground">Stream</span>
           </span>
         </Link>
 
