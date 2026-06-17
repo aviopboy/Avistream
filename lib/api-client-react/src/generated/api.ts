@@ -19,6 +19,7 @@ import type {
   EpisodeResponse,
   ErrorResponse,
   HealthStatus,
+  HomeResponse,
   SearchAnimeParams,
   SearchResponse,
   SeriesResponse
@@ -102,6 +103,83 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetAnimeHomeUrl = () => {
+
+
+
+
+  return `/api/anime/home`
+}
+
+/**
+ * @summary Get home page anime lists
+ */
+export const getAnimeHome = async ( options?: RequestInit): Promise<HomeResponse> => {
+
+  return customFetch<HomeResponse>(getGetAnimeHomeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAnimeHomeQueryKey = () => {
+    return [
+    `/api/anime/home`
+    ] as const;
+    }
+
+
+export const getGetAnimeHomeQueryOptions = <TData = Awaited<ReturnType<typeof getAnimeHome>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAnimeHome>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAnimeHomeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAnimeHome>>> = ({ signal }) => getAnimeHome({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAnimeHome>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAnimeHomeQueryResult = NonNullable<Awaited<ReturnType<typeof getAnimeHome>>>
+export type GetAnimeHomeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get home page anime lists
+ */
+
+export function useGetAnimeHome<TData = Awaited<ReturnType<typeof getAnimeHome>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAnimeHome>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAnimeHomeQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

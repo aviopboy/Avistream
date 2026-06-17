@@ -13,17 +13,27 @@ export interface ErrorResponse {
   error: string;
 }
 
-export interface AnimeSearchResult {
+export interface AnimeCard {
   title: string;
   url: string;
   slug: string;
   image: string;
 }
 
+export interface HomeData {
+  fresh_drops: AnimeCard[];
+  on_air: AnimeCard[];
+}
+
+export interface HomeResponse {
+  success: boolean;
+  data: HomeData;
+}
+
 export interface SearchResponse {
   success: boolean;
   query: string;
-  results: AnimeSearchResult[];
+  results: AnimeCard[];
 }
 
 export interface AnimeEpisode {

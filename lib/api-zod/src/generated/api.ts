@@ -18,6 +18,28 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get home page anime lists
+ */
+export const GetAnimeHomeResponse = zod.object({
+  "success": zod.boolean(),
+  "data": zod.object({
+  "fresh_drops": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "slug": zod.string(),
+  "image": zod.string()
+})),
+  "on_air": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "slug": zod.string(),
+  "image": zod.string()
+}))
+})
+})
+
+
+/**
  * @summary Search anime by query
  */
 export const SearchAnimeQueryParams = zod.object({

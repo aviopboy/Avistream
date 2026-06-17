@@ -5,10 +5,10 @@
  * AnimeSalt streaming API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { AnimeCard } from './animeCard';
 
-export interface SearchResponse {
-  success: boolean;
-  query: string;
-  results: AnimeCard[];
+export interface AnimeCard {
+  title: string;
+  url: string;
+  slug: string;
+  image: string;
 }

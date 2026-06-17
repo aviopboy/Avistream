@@ -6,13 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './animeCard';
 export * from './animeEpisode';
-export * from './animeSearchResult';
 export * from './animeSeason';
 export * from './episodeData';
 export * from './episodeResponse';
 export * from './errorResponse';
 export * from './healthStatus';
+export * from './homeData';
+export * from './homeResponse';
 export * from './searchAnimeParams';
 export * from './searchResponse';
 export * from './seriesData';
