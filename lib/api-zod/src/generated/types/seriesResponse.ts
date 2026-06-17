@@ -5,7 +5,9 @@
  * AnimeSalt streaming API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SeriesData } from './seriesData';
 
-export interface HealthStatus {
-  status: string;
+export interface SeriesResponse {
+  success: boolean;
+  data: SeriesData;
 }

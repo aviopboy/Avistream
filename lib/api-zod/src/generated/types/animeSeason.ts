@@ -5,7 +5,9 @@
  * AnimeSalt streaming API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AnimeEpisode } from './animeEpisode';
 
-export interface HealthStatus {
-  status: string;
+export interface AnimeSeason {
+  number: number;
+  episodes: AnimeEpisode[];
 }
