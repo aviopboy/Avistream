@@ -284,7 +284,7 @@ export const getGetAnimeSeriesUrl = (slug: string,) => {
 }
 
 /**
- * @summary Get anime series details
+ * @summary Get anime series or movie details
  */
 export const getAnimeSeries = async (slug: string, options?: RequestInit): Promise<SeriesResponse> => {
 
@@ -331,7 +331,7 @@ export type GetAnimeSeriesQueryError = ErrorType<ErrorResponse>
 
 
 /**
- * @summary Get anime series details
+ * @summary Get anime series or movie details
  */
 
 export function useGetAnimeSeries<TData = Awaited<ReturnType<typeof getAnimeSeries>>, TError = ErrorType<ErrorResponse>>(

@@ -62,7 +62,7 @@ paths:
     get:
       operationId: getAnimeSeries
       tags: [anime]
-      summary: Get anime series details
+      summary: Get anime series or movie details
       parameters:
         - in: path
           name: slug
@@ -132,16 +132,14 @@ components:
         title:
           type: string
         url:
-          type: string
+          type: ["string", "null"]
         slug:
           type: string
         image:
-          type: string
+          type: ["string", "null"]
       required:
         - title
-        - url
         - slug
-        - image
 
     HomeData:
       type: object
@@ -154,9 +152,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AnimeCard"
+        new_arrivals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnimeCard"
+        movies:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnimeCard"
       required:
         - fresh_drops
         - on_air
+        - new_arrivals
+        - movies
 
     HomeResponse:
       type: object
@@ -222,6 +230,10 @@ components:
             type: string
         is_movie:
           type: ["boolean", "null"]
+        movie_players:
+          type: array
+          items:
+            type: string
         episodes:
           type: array
           items:

@@ -18,5 +18,6 @@ export interface SeriesData {
   genres?: string[];
   /** @nullable */
   is_movie?: boolean | null;
+  movie_players?: string[];
   episodes: FlatEpisode[];
 }

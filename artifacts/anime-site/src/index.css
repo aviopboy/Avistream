@@ -51,89 +51,64 @@
 
 :root {
   color-scheme: dark;
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 3.7% 15.9%;
-  
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 3.7% 15.9%;
-  
-  --primary: 263.4 70% 50.4%; /* Deep violet */
-  --primary-foreground: 210 40% 98%;
-  --primary-border: 263.4 70% 50.4%;
-  
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --secondary-border: 240 3.7% 15.9%;
-  
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --muted-border: 240 3.7% 15.9%;
-  
-  --accent: 263.4 70% 50.4%;
-  --accent-foreground: 210 40% 98%;
-  --accent-border: 263.4 70% 50.4%;
-  
-  --destructive: 0 62.8% 30.6%;
+  /* Deep dark background like #060608 */
+  --background: 240 15% 2.7%;
+  --foreground: 240 20% 95%;
+
+  --card: 240 12% 5.5%;
+  --card-foreground: 240 20% 95%;
+  --card-border: 240 10% 13%;
+
+  --popover: 240 12% 7%;
+  --popover-foreground: 240 20% 95%;
+  --popover-border: 240 10% 13%;
+
+  /* Orange accent #ff6b35 → HSL 16 100% 60% */
+  --primary: 16 100% 60%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 16 100% 60%;
+
+  --secondary: 240 10% 10%;
+  --secondary-foreground: 240 20% 95%;
+  --secondary-border: 240 10% 13%;
+
+  --muted: 240 10% 10%;
+  --muted-foreground: 240 8% 55%;
+  --muted-border: 240 10% 13%;
+
+  --accent: 16 100% 60%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: 16 100% 60%;
+
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
-  --destructive-border: 0 62.8% 30.6%;
-  
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 263.4 70% 50.4%;
-  
-  --app-font-sans: 'Inter', sans-serif;
+  --destructive-border: 0 72% 51%;
+
+  --border: 240 10% 13%;
+  --input: 240 10% 10%;
+  --ring: 16 100% 60%;
+
+  --app-font-sans: 'Outfit', sans-serif;
   --app-font-serif: Georgia, serif;
-  --app-font-mono: Menlo, monospace;
+  --app-font-mono: 'Space Mono', monospace;
   --radius: 0.5rem;
 }
 
-.dark {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 3.7% 15.9%;
-  
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 3.7% 15.9%;
-  
-  --primary: 263.4 70% 50.4%;
-  --primary-foreground: 210 40% 98%;
-  --primary-border: 263.4 70% 50.4%;
-  
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --secondary-border: 240 3.7% 15.9%;
-  
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --muted-border: 240 3.7% 15.9%;
-  
-  --accent: 263.4 70% 50.4%;
-  --accent-foreground: 210 40% 98%;
-  --accent-border: 263.4 70% 50.4%;
-  
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --destructive-border: 0 62.8% 30.6%;
-  
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 263.4 70% 50.4%;
-}
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
 
 @layer base {
   * {
     @apply border-border;
   }
   body {
-    @apply font-sans antialiased bg-background text-foreground selection:bg-primary selection:text-primary-foreground;
+    @apply font-sans antialiased bg-background text-foreground selection:bg-primary/30 selection:text-primary;
   }
 }
+
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }

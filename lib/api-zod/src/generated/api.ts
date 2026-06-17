@@ -24,15 +24,27 @@ export const GetAnimeHomeResponse = zod.object({
   "data": zod.object({
   "fresh_drops": zod.array(zod.object({
   "title": zod.string(),
-  "url": zod.string(),
+  "url": zod.string().nullish(),
   "slug": zod.string(),
-  "image": zod.string()
+  "image": zod.string().nullish()
 })),
   "on_air": zod.array(zod.object({
   "title": zod.string(),
-  "url": zod.string(),
+  "url": zod.string().nullish(),
   "slug": zod.string(),
-  "image": zod.string()
+  "image": zod.string().nullish()
+})),
+  "new_arrivals": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string().nullish(),
+  "slug": zod.string(),
+  "image": zod.string().nullish()
+})),
+  "movies": zod.array(zod.object({
+  "title": zod.string(),
+  "url": zod.string().nullish(),
+  "slug": zod.string(),
+  "image": zod.string().nullish()
 }))
 })
 })
@@ -50,15 +62,15 @@ export const SearchAnimeResponse = zod.object({
   "query": zod.string(),
   "results": zod.array(zod.object({
   "title": zod.string(),
-  "url": zod.string(),
+  "url": zod.string().nullish(),
   "slug": zod.string(),
-  "image": zod.string()
+  "image": zod.string().nullish()
 }))
 })
 
 
 /**
- * @summary Get anime series details
+ * @summary Get anime series or movie details
  */
 export const GetAnimeSeriesParams = zod.object({
   "slug": zod.coerce.string()
@@ -73,6 +85,7 @@ export const GetAnimeSeriesResponse = zod.object({
   "description": zod.string().nullish(),
   "genres": zod.array(zod.string()).optional(),
   "is_movie": zod.boolean().nullish(),
+  "movie_players": zod.array(zod.string()).optional(),
   "episodes": zod.array(zod.object({
   "id": zod.string(),
   "number": zod.string(),

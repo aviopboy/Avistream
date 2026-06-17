@@ -8,7 +8,9 @@
 
 export interface AnimeCard {
   title: string;
-  url: string;
+  /** @nullable */
+  url?: string | null;
   slug: string;
-  image: string;
+  /** @nullable */
+  image?: string | null;
 }

@@ -27,6 +27,8 @@ router.get("/anime/home", async (req, res) => {
       data: {
         fresh_drops: (data?.["fresh_drops"] ?? []) as unknown[],
         on_air: (data?.["on-air_series_view_more"] ?? []) as unknown[],
+        new_arrivals: (data?.["new_anime_arrivals_view_more"] ?? []) as unknown[],
+        movies: (data?.["latest_anime_movies_view_more"] ?? []) as unknown[],
       },
     });
   } catch (err) {

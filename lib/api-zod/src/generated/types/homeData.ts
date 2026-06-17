@@ -10,4 +10,6 @@ import type { AnimeCard } from './animeCard';
 export interface HomeData {
   fresh_drops: AnimeCard[];
   on_air: AnimeCard[];
+  new_arrivals: AnimeCard[];
+  movies: AnimeCard[];
 }

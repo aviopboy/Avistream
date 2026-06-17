@@ -15,14 +15,18 @@ export interface ErrorResponse {
 
 export interface AnimeCard {
   title: string;
-  url: string;
+  /** @nullable */
+  url?: string | null;
   slug: string;
-  image: string;
+  /** @nullable */
+  image?: string | null;
 }
 
 export interface HomeData {
   fresh_drops: AnimeCard[];
   on_air: AnimeCard[];
+  new_arrivals: AnimeCard[];
+  movies: AnimeCard[];
 }
 
 export interface HomeResponse {
@@ -59,6 +63,7 @@ export interface SeriesData {
   genres?: string[];
   /** @nullable */
   is_movie?: boolean | null;
+  movie_players?: string[];
   episodes: FlatEpisode[];
 }
 
