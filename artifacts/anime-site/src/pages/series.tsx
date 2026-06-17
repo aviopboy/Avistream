@@ -1,10 +1,18 @@
+import { useState } from "react";
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, Play, ListVideo } from "lucide-react";
+import { ArrowLeft, Play, ListVideo, ChevronDown } from "lucide-react";
 import { useGetAnimeSeries, getGetAnimeSeriesQueryKey } from "@workspace/api-client-react";
 import type { FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type GroupedSeason = {
   number: string;
@@ -24,6 +32,7 @@ function groupBySeason(episodes: FlatEpisode[]): GroupedSeason[] {
 export default function Series() {
   const [, params] = useRoute("/series/:slug");
   const slug = params?.slug ?? "";
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
 
   const { data: seriesResponse, isLoading, isError } = useGetAnimeSeries(slug, {
     query: { enabled: !!slug, queryKey: getGetAnimeSeriesQueryKey(slug) },
@@ -78,6 +87,8 @@ export default function Series() {
 
   const seasons = groupBySeason(series.episodes ?? []);
   const firstEp = seasons[0]?.episodes[0];
+  const activeSeason = selectedSeason ?? seasons[0]?.number ?? null;
+  const activeEpisodes = seasons.find((s) => s.number === activeSeason)?.episodes ?? [];
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
@@ -165,19 +176,58 @@ export default function Series() {
         </div>
       </div>
 
-      {/* Episodes by season */}
-      <div className="max-w-6xl mx-auto px-6 mt-16 space-y-12">
-        {seasons.map((season) => (
-          <div key={season.number} className="space-y-5">
-            <h3 className="text-lg font-semibold flex items-center gap-3 text-white">
-              <span className="w-1 h-5 bg-primary rounded-full inline-block" />
-              Season {season.number}
-            </h3>
+      {/* Episodes section */}
+      <div className="max-w-6xl mx-auto px-6 mt-16">
+        {seasons.length === 0 ? (
+          <div className="text-center text-muted-foreground py-16 border border-dashed border-white/10 rounded-2xl">
+            No episodes available yet.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Season selector header */}
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-3">
+                <span className="w-1 h-5 bg-primary rounded-full inline-block" />
+                Episodes
+              </h2>
+              {seasons.length > 1 && (
+                <Select
+                  value={activeSeason ?? ""}
+                  onValueChange={setSelectedSeason}
+                >
+                  <SelectTrigger
+                    className="w-40 bg-white/5 border-white/10 text-white rounded-xl focus:ring-primary/50"
+                    data-testid="select-season"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                      <SelectValue placeholder="Season" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#111] border-white/10">
+                    {seasons.map((s) => (
+                      <SelectItem
+                        key={s.number}
+                        value={s.number}
+                        className="text-white/80 hover:text-white focus:bg-white/10 focus:text-white"
+                        data-testid={`option-season-${s.number}`}
+                      >
+                        Season {s.number}
+                        <span className="ml-2 text-muted-foreground text-xs">
+                          ({s.episodes.length} eps)
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
+            {/* Episode grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {season.episodes.map((ep) => (
+              {activeEpisodes.map((ep) => (
                 <Link key={ep.id} href={`/watch/${ep.id}`} data-testid={`link-episode-${ep.id}`}>
-                  <div className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-4 transition-all flex items-center gap-4 cursor-pointer">
+                  <div className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-primary/30 rounded-xl p-3 transition-all flex items-center gap-3 cursor-pointer">
                     {ep.thumbnail ? (
                       <div className="w-16 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
                         <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -189,7 +239,7 @@ export default function Series() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-muted-foreground font-medium mb-0.5">
-                        Episode {ep.number}
+                        Ep {ep.number}
                       </div>
                       <div className="text-sm font-medium text-white/80 truncate group-hover:text-white transition-colors">
                         {ep.title ?? `Episode ${ep.number}`}
@@ -199,12 +249,6 @@ export default function Series() {
                 </Link>
               ))}
             </div>
-          </div>
-        ))}
-
-        {seasons.length === 0 && (
-          <div className="text-center text-muted-foreground py-16 border border-dashed border-white/10 rounded-2xl">
-            No episodes available yet.
           </div>
         )}
       </div>
