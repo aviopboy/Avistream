@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 
 type AudioLang = "japanese" | "english" | "hindi" | "tamil" | "malayalam";
 
-const LANG_KEY = "animesalt_audio";
-const SUB_KEY = "animesalt_sub";
+const LANG_KEY = "avistream_audio";
+const SUB_KEY = "avistream_sub";
 
 const LANGUAGES: { value: AudioLang; label: string }[] = [
   { value: "japanese", label: "Japanese" },

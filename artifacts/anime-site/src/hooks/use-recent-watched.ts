@@ -6,7 +6,7 @@ export type RecentItem = {
   image: string | null;
 };
 
-const KEY = "animesalt_recent";
+const KEY = "avistream_recent";
 const MAX = 20;
 
 function load(): RecentItem[] {
