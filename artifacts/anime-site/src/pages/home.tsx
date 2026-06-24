@@ -1,15 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Play, Flame, Tv, Sparkles, Film, Clock, Bookmark } from "lucide-react";
-import { useGetAnimeHome } from "@workspace/api-client-react";
+import { Play, Flame, Tv, Sparkles, Film, Clock, Bookmark, Search, X } from "lucide-react";
+import { useGetAnimeHome, useSearchAnime, getSearchAnimeQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AnimeCard } from "@workspace/api-client-react";
 import { useRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
+import { useDebounce } from "@/hooks/use-debounce";
 
 function Card({ anime }: { anime: AnimeCard }) {
   return (
-    <Link href={`/series/${anime.slug}`} data-testid={`card-${anime.slug}`}>
+    <Link href={`/series/${anime.slug}`}>
       <div className="group relative rounded-lg overflow-hidden bg-secondary cursor-pointer transition-transform duration-200 hover:-translate-y-1"
         style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
         <div className="aspect-[2/3] overflow-hidden">
@@ -22,7 +23,7 @@ function Card({ anime }: { anime: AnimeCard }) {
             </div>
           )}
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end p-2.5">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-3/4 w-11 h-11 rounded-full flex items-center justify-center"
             style={{ background: "hsl(var(--primary))" }}>
             <Play className="w-5 h-5 fill-white text-white ml-0.5" />
@@ -56,13 +57,15 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
+const GRID = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3";
+
 function GridSection({ title, icon, items, loading }: {
   title: string; icon: React.ReactNode; items: AnimeCard[]; loading: boolean;
 }) {
   return (
     <section>
       <SectionHeader title={title} icon={icon} />
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className={GRID}>
         {loading ? Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />) : items.map((a) => <Card key={a.slug} anime={a} />)}
       </div>
     </section>
@@ -95,8 +98,7 @@ function BookmarkCard({ slug, title, image, episodeId, episodeTitle }: {
         <div className="w-full aspect-[16/9] overflow-hidden relative bg-black/40">
           {image
             ? <img src={image} alt={title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" loading="lazy" />
-            : <div className="w-full h-full flex items-center justify-center"><Tv className="w-6 h-6 text-white/20" /></div>
-          }
+            : <div className="w-full h-full flex items-center justify-center"><Tv className="w-6 h-6 text-white/20" /></div>}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               style={{ background: "hsl(var(--primary))" }}>
@@ -118,6 +120,15 @@ export default function Home() {
   const { items: recentItems, refresh } = useRecentWatched();
   const { items: bookmarkItems } = useBookmarks();
 
+  const [query, setQuery] = useState("");
+  const debouncedQ = useDebounce(query, 350);
+  const isSearching = debouncedQ.length > 1;
+
+  const { data: searchData, isLoading: searchLoading } = useSearchAnime(
+    { q: debouncedQ },
+    { query: { enabled: isSearching, queryKey: getSearchAnimeQueryKey({ q: debouncedQ }) } }
+  );
+
   useEffect(() => { refresh(); }, [refresh]);
 
   const freshDrops = homeData?.data?.fresh_drops ?? [];
@@ -129,40 +140,82 @@ export default function Home() {
     slug: r.slug, title: r.title, image: r.image, url: null,
   }));
 
+  const searchResults = searchData?.results ?? [];
+
   return (
     <div className="min-h-screen" style={{ background: "hsl(var(--background))" }}>
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12">
 
-        {/* Bookmarks */}
-        {bookmarkItems.length > 0 && (
+        {/* Search bar */}
+        <div className="relative max-w-2xl mx-auto">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search anime, movies..."
+            className="w-full pl-11 pr-10 py-3.5 text-sm rounded-2xl outline-none transition-colors"
+            style={{
+              background: "hsl(var(--secondary))",
+              border: "1px solid hsl(var(--border))",
+              color: "hsl(var(--foreground))",
+              fontSize: "16px",
+            }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors p-1">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Search results */}
+        {isSearching ? (
           <section>
-            <SectionHeader title="Bookmarks" icon={<Bookmark className="w-4 h-4" />} />
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
-              {bookmarkItems.map((b) => (
-                <BookmarkCard key={b.episodeId} slug={b.seriesSlug} title={b.seriesTitle}
-                  image={b.seriesImage} episodeId={b.episodeId} episodeTitle={b.episodeTitle} />
-              ))}
-            </div>
+            <SectionHeader title={`Results for "${debouncedQ}"`} icon={<Search className="w-4 h-4" />} />
+            {searchLoading ? (
+              <div className={GRID}>{Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />)}</div>
+            ) : searchResults.length > 0 ? (
+              <div className={GRID}>{searchResults.map((a) => <Card key={a.slug} anime={a} />)}</div>
+            ) : (
+              <div className="py-20 text-center text-muted-foreground">No results for &quot;{debouncedQ}&quot;</div>
+            )}
           </section>
-        )}
+        ) : (
+          <>
+            {/* Bookmarks */}
+            {bookmarkItems.length > 0 && (
+              <section>
+                <SectionHeader title="Bookmarks" icon={<Bookmark className="w-4 h-4" />} />
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                  {bookmarkItems.map((b) => (
+                    <BookmarkCard key={b.id} slug={b.seriesSlug} title={b.seriesTitle}
+                      image={b.seriesImage} episodeId={b.episodeId} episodeTitle={b.episodeTitle} />
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Recent Watched */}
-        {recentCards.length > 0 && (
-          <ScrollSection title="Recently Watched" icon={<Clock className="w-4 h-4" />} items={recentCards} loading={false} />
-        )}
+            {/* Recent Watched */}
+            {recentCards.length > 0 && (
+              <ScrollSection title="Recently Watched" icon={<Clock className="w-4 h-4" />} items={recentCards} loading={false} />
+            )}
 
-        {/* Fresh Drops */}
-        <GridSection title="Fresh Drops" icon={<Flame className="w-4 h-4" />} items={freshDrops} loading={isLoading} />
+            {/* Fresh Drops */}
+            <GridSection title="Fresh Drops" icon={<Flame className="w-4 h-4" />} items={freshDrops} loading={isLoading} />
 
-        {/* Trending */}
-        <ScrollSection title="Trending Now" icon={<Sparkles className="w-4 h-4" />} items={onAir} loading={isLoading} />
+            {/* Trending */}
+            <ScrollSection title="Trending Now" icon={<Sparkles className="w-4 h-4" />} items={onAir} loading={isLoading} />
 
-        {/* Popular */}
-        <ScrollSection title="All Time Popular" icon={<Tv className="w-4 h-4" />} items={newArrivals} loading={isLoading} />
+            {/* Popular */}
+            <ScrollSection title="All Time Popular" icon={<Tv className="w-4 h-4" />} items={newArrivals} loading={isLoading} />
 
-        {/* Movies */}
-        {(isLoading || movies.length > 0) && (
-          <ScrollSection title="Anime Movies" icon={<Film className="w-4 h-4" />} items={movies} loading={isLoading} />
+            {/* Movies */}
+            {(isLoading || movies.length > 0) && (
+              <ScrollSection title="Anime Movies" icon={<Film className="w-4 h-4" />} items={movies} loading={isLoading} />
+            )}
+          </>
         )}
       </main>
     </div>
