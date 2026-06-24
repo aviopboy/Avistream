@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 
 export type Bookmark = {
+  id: string;
   episodeId: string;
   seriesSlug: string;
   seriesTitle: string;
@@ -8,34 +9,22 @@ export type Bookmark = {
   episodeTitle: string;
   season: string;
   episodeNum: string;
+  timestamp: string;
   savedAt: number;
 };
 
 const KEY = "avistream_bookmarks";
 
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
 function load(): Bookmark[] {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) ?? "[]") as Bookmark[];
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(KEY) ?? "[]") as Bookmark[]; } catch { return []; }
 }
 
-function save(items: Bookmark[]) {
+function persist(items: Bookmark[]) {
   try { localStorage.setItem(KEY, JSON.stringify(items)); } catch { /* ignore */ }
-}
-
-export function addBookmark(b: Omit<Bookmark, "savedAt">) {
-  const prev = load().filter((x) => x.episodeId !== b.episodeId);
-  save([{ ...b, savedAt: Date.now() }, ...prev]);
-}
-
-export function removeBookmark(episodeId: string) {
-  save(load().filter((x) => x.episodeId !== episodeId));
-}
-
-export function isBookmarked(episodeId: string): boolean {
-  return load().some((x) => x.episodeId === episodeId);
 }
 
 export function useBookmarks() {
@@ -43,18 +32,21 @@ export function useBookmarks() {
 
   const refresh = useCallback(() => setItems(load()), []);
 
-  const toggle = useCallback((b: Omit<Bookmark, "savedAt">) => {
-    const prev = load();
-    const exists = prev.some((x) => x.episodeId === b.episodeId);
-    const next = exists
-      ? prev.filter((x) => x.episodeId !== b.episodeId)
-      : [{ ...b, savedAt: Date.now() }, ...prev];
-    save(next);
+  const addBookmark = useCallback((b: Omit<Bookmark, "id" | "savedAt">) => {
+    const next = [{ ...b, id: uid(), savedAt: Date.now() }, ...load()];
+    persist(next);
     setItems(next);
-    return !exists;
   }, []);
 
-  const clear = useCallback(() => { save([]); setItems([]); }, []);
+  const removeBookmark = useCallback((id: string) => {
+    const next = load().filter((x) => x.id !== id);
+    persist(next);
+    setItems(next);
+  }, []);
 
-  return { items, refresh, toggle, clear };
+  return { items, refresh, addBookmark, removeBookmark };
+}
+
+export function getEpisodeBookmarks(episodeId: string): Bookmark[] {
+  return load().filter((b) => b.episodeId === episodeId);
 }

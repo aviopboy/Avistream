@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Loader2,
-  AlertCircle, Play, Tv, Captions, Bookmark, BookmarkCheck,
+  AlertCircle, Play, Tv, Captions, Bookmark, Trash2, Plus, X, Clock,
 } from "lucide-react";
 import {
   useGetAnimeEpisode, getGetAnimeEpisodeQueryKey,
@@ -13,6 +13,7 @@ import type { AnimeCard, FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { addRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
+import type { Bookmark as BookmarkType } from "@/hooks/use-bookmarks";
 
 type AudioLang = "japanese" | "english" | "hindi" | "tamil" | "malayalam";
 const LANG_KEY = "avistream_audio";
@@ -26,6 +27,156 @@ const LANGUAGES: { value: AudioLang; label: string }[] = [
   { value: "malayalam", label: "Malayalam" },
 ];
 
+/* ─── Timestamp helpers ─── */
+function parseTimestamp(s: string): string {
+  const cleaned = s.replace(/[^\d:]/g, "");
+  const parts = cleaned.split(":").map(Number);
+  if (parts.length === 1) {
+    const m = parts[0] ?? 0;
+    return `${m}:00`;
+  }
+  const [m = 0, sec = 0] = parts;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+/* ─── Bookmark Panel ─── */
+function BookmarkPanel({
+  episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum,
+  onNavigate, onClose,
+}: {
+  episodeId: string; seriesSlug: string; seriesTitle: string; seriesImage: string | null;
+  episodeTitle: string; season: string; episodeNum: string;
+  onNavigate: (episodeId: string, timestamp: string) => void;
+  onClose: () => void;
+}) {
+  const { items, addBookmark, removeBookmark } = useBookmarks();
+  const epBookmarks = items.filter((b) => b.episodeId === episodeId);
+
+  const [adding, setAdding] = useState(false);
+  const [tsInput, setTsInput] = useState("0:00");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (adding) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [adding]);
+
+  const handleAdd = () => {
+    const ts = parseTimestamp(tsInput.trim() || "0:00");
+    addBookmark({ episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum, timestamp: ts });
+    setAdding(false);
+    setTsInput("0:00");
+  };
+
+  return (
+    <div className="absolute right-0 top-full mt-2 w-72 z-50 rounded-2xl border overflow-hidden shadow-2xl"
+      style={{ background: "hsl(var(--card))", borderColor: "rgba(255,255,255,0.1)" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+        <div className="flex items-center gap-2">
+          <Bookmark className="w-3.5 h-3.5" style={{ color: "hsl(var(--primary))" }} />
+          <span className="text-sm font-semibold text-white">Bookmarks</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {!adding && (
+            <button onClick={() => setAdding(true)}
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
+              title="Add bookmark at timestamp">
+              <Plus className="w-3.5 h-3.5 text-white/60 hover:text-white" />
+            </button>
+          )}
+          <button onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/10">
+            <X className="w-3.5 h-3.5 text-white/40 hover:text-white" />
+          </button>
+        </div>
+      </div>
+
+      {/* Add form */}
+      {adding && (
+        <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+          <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
+          <input
+            ref={inputRef}
+            value={tsInput}
+            onChange={(e) => setTsInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+            placeholder="e.g. 12:34"
+            className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/25 min-w-0"
+          />
+          <button onClick={() => setAdding(false)}
+            className="text-xs text-white/30 hover:text-white/60 transition-colors px-1">
+            Cancel
+          </button>
+          <button onClick={handleAdd}
+            className="text-xs font-semibold px-2.5 py-1 rounded-full transition-colors"
+            style={{ background: "hsl(var(--primary))", color: "#fff" }}>
+            Save
+          </button>
+        </div>
+      )}
+
+      {/* Bookmark list */}
+      <div className="max-h-64 overflow-y-auto scrollbar-none">
+        {epBookmarks.length === 0 ? (
+          <div className="py-8 text-center space-y-2">
+            <Bookmark className="w-7 h-7 mx-auto text-white/15" />
+            <p className="text-xs text-white/30">No bookmarks yet.</p>
+            <button onClick={() => setAdding(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+              style={{ background: "hsl(var(--primary) / 0.15)", color: "hsl(var(--primary))" }}>
+              + Add first bookmark
+            </button>
+          </div>
+        ) : (
+          <div className="py-1">
+            {epBookmarks.map((b) => (
+              <BookmarkRow key={b.id} bookmark={b}
+                onPlay={() => onNavigate(b.episodeId, b.timestamp)}
+                onDelete={() => removeBookmark(b.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Episode label */}
+      <div className="px-4 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <p className="text-[10px] text-white/25 truncate">{episodeTitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function BookmarkRow({ bookmark, onPlay, onDelete }: {
+  bookmark: BookmarkType; onPlay: () => void; onDelete: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
+      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: "hsl(var(--primary) / 0.12)", border: "1px solid hsl(var(--primary) / 0.25)" }}>
+        <Clock className="w-3.5 h-3.5" style={{ color: "hsl(var(--primary))" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-mono font-semibold text-white">{bookmark.timestamp}</p>
+        <p className="text-[10px] text-white/35">
+          {new Date(bookmark.savedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+        </p>
+      </div>
+      <button onClick={onPlay}
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+        style={{ background: "hsl(var(--primary))" }}
+        title="Play from this timestamp">
+        <Play className="w-3 h-3 fill-white text-white ml-0.5" />
+      </button>
+      <button onClick={onDelete}
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20"
+        title="Delete bookmark">
+        <Trash2 className="w-3 h-3 text-red-400" />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Language Bar ─── */
 function LanguageBar({ audio, sub, onAudio, onSub }: {
   audio: AudioLang; sub: boolean; onAudio: (l: AudioLang) => void; onSub: (v: boolean) => void;
 }) {
@@ -52,6 +203,7 @@ function LanguageBar({ audio, sub, onAudio, onSub }: {
   );
 }
 
+/* ─── Recommendation Card ─── */
 function RecCard({ anime }: { anime: AnimeCard }) {
   return (
     <Link href={`/series/${anime.slug}`}>
@@ -67,6 +219,7 @@ function RecCard({ anime }: { anime: AnimeCard }) {
   );
 }
 
+/* ─── Episode Item ─── */
 function EpisodeItem({ ep, isActive, onClick }: { ep: FlatEpisode; isActive: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick}
@@ -93,16 +246,17 @@ function EpisodeItem({ ep, isActive, onClick }: { ep: FlatEpisode; isActive: boo
   );
 }
 
+/* ─── Main Watch Page ─── */
 export default function Watch() {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/watch/:episodeId");
   const baseEpisodeId = params?.episodeId ?? "";
 
-  // Detect movie: no NxN pattern in the ID
   const slugMatch = baseEpisodeId.match(/^(.*?)-(\d+)x(\d+)$/);
   const isMovie = !slugMatch;
   const seriesSlug = isMovie ? baseEpisodeId : (slugMatch?.[1] ?? "");
   const currentSeason = slugMatch?.[2] ?? "1";
+  const episodeNum = slugMatch?.[3] ?? "1";
   const recKeyword = seriesSlug.split("-")[0] ?? "";
 
   const [audioLang, setAudioLang] = useState<AudioLang>(() => {
@@ -111,43 +265,57 @@ export default function Watch() {
   const [subEnabled, setSubEnabled] = useState(() => {
     try { return localStorage.getItem(SUB_KEY) !== "false"; } catch { return true; }
   });
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const bookmarkRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { try { localStorage.setItem(LANG_KEY, audioLang); } catch { /**/ } }, [audioLang]);
   useEffect(() => { try { localStorage.setItem(SUB_KEY, String(subEnabled)); } catch { /**/ } }, [subEnabled]);
 
+  // Close bookmark panel on outside click
+  useEffect(() => {
+    if (!bookmarkOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (bookmarkRef.current && !bookmarkRef.current.contains(e.target as Node)) {
+        setBookmarkOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [bookmarkOpen]);
+
   const isDub = audioLang !== "japanese";
   const episodeId = isDub ? `${baseEpisodeId}--dub` : baseEpisodeId;
 
-  // Episode data (for regular episodes)
   const { data: episodeResponse, isLoading: epLoading, isError: epError } = useGetAnimeEpisode(episodeId, {
     query: { enabled: !isMovie && !!episodeId, queryKey: getGetAnimeEpisodeQueryKey(episodeId) },
   });
-
-  // Series data (always loaded — used for episodes list, background, movie player)
   const { data: seriesData, isLoading: seriesLoading } = useGetAnimeSeries(seriesSlug, {
     query: { enabled: !!seriesSlug, queryKey: getGetAnimeSeriesQueryKey(seriesSlug) },
   });
-
   const { data: recData } = useSearchAnime(
     { q: recKeyword },
     { query: { enabled: recKeyword.length >= 2, queryKey: getSearchAnimeQueryKey({ q: recKeyword }) } }
   );
 
-  const { items: bookmarks, toggle: toggleBookmark } = useBookmarks();
-  const isBookmarked = bookmarks.some((b) => b.episodeId === baseEpisodeId);
+  const { items: bookmarkItems } = useBookmarks();
+  const epBookmarkCount = bookmarkItems.filter((b) => b.episodeId === baseEpisodeId).length;
 
   const episode = episodeResponse?.data;
   const seriesInfo = seriesData?.data;
   const moviePlayerUrl = isMovie ? seriesInfo?.movie_players?.[0] ?? null : null;
   const bgImage = seriesInfo?.thumbnail ?? null;
+  const episodeTitle = isMovie
+    ? (seriesInfo?.title ?? "Movie")
+    : `Season ${currentSeason} Ep ${episodeNum}`;
 
   const isLoading = isMovie ? seriesLoading : epLoading;
-  const isError = isMovie ? (!seriesLoading && !moviePlayerUrl) : epError;
+  const playerUrl = isMovie ? moviePlayerUrl : episode?.video_player ?? null;
+  const showError = !isLoading && !playerUrl;
+  const dubUnavailable = !isMovie && isDub && (epError || !episode?.video_player);
 
   const seasonEpisodes: FlatEpisode[] = (seriesInfo?.episodes ?? []).filter((ep) => ep.season === currentSeason);
   const recommendations = (recData?.results ?? []).filter((r) => r.slug !== seriesSlug).slice(0, 12);
 
-  // Save to recent watched once we have series info
   useEffect(() => {
     if (seriesInfo && seriesSlug) {
       addRecentWatched({ slug: seriesSlug, title: seriesInfo.title, image: seriesInfo.thumbnail ?? null });
@@ -156,23 +324,10 @@ export default function Watch() {
 
   const goToEpisode = (id: string) => setLocation(`/watch/${id}`);
 
-  const handleBookmark = () => {
-    if (!seriesInfo) return;
-    const epNum = slugMatch?.[3] ?? "1";
-    toggleBookmark({
-      episodeId: baseEpisodeId,
-      seriesSlug,
-      seriesTitle: seriesInfo.title,
-      seriesImage: seriesInfo.thumbnail ?? null,
-      episodeTitle: isMovie ? seriesInfo.title : `Season ${currentSeason} Episode ${epNum}`,
-      season: currentSeason,
-      episodeNum: epNum,
-    });
+  const handleBookmarkNavigate = (epId: string, _timestamp: string) => {
+    setBookmarkOpen(false);
+    goToEpisode(epId);
   };
-
-  const playerUrl = isMovie ? moviePlayerUrl : episode?.video_player ?? null;
-  const showError = !isLoading && (isError || !playerUrl);
-  const dubUnavailable = !isMovie && isDub && (epError || !episode?.video_player);
 
   return (
     <div className="min-h-screen bg-black text-foreground flex flex-col relative overflow-hidden">
@@ -190,24 +345,51 @@ export default function Watch() {
         <Link href={seriesSlug ? `/series/${seriesSlug}` : "/"}>
           <Button variant="ghost" className="gap-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full">
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline text-sm">Back to Series</span>
+            <span className="hidden sm:inline text-sm">Back</span>
           </Button>
         </Link>
         {seriesInfo && (
-          <span className="text-sm font-semibold text-white/70 truncate max-w-[200px] md:max-w-xs">
+          <span className="text-sm font-semibold text-white/70 truncate max-w-[160px] md:max-w-xs">
             {seriesInfo.title}
           </span>
         )}
-        {/* Bookmark button */}
         {!isMovie && (
-          <button onClick={handleBookmark}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border"
-            style={isBookmarked
-              ? { background: "hsl(var(--primary) / 0.15)", borderColor: "hsl(var(--primary) / 0.4)", color: "hsl(var(--primary))" }
-              : { background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
-            {isBookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isBookmarked ? "Bookmarked" : "Bookmark"}</span>
-          </button>
+          <span className="text-xs text-white/30 hidden sm:block flex-shrink-0">{episodeTitle}</span>
+        )}
+
+        {/* Bookmark button with panel */}
+        {!isMovie && (
+          <div ref={bookmarkRef} className="ml-auto relative">
+            <button
+              onClick={() => setBookmarkOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border"
+              style={bookmarkOpen || epBookmarkCount > 0
+                ? { background: "hsl(var(--primary) / 0.15)", borderColor: "hsl(var(--primary) / 0.4)", color: "hsl(var(--primary))" }
+                : { background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+              <Bookmark className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bookmarks</span>
+              {epBookmarkCount > 0 && (
+                <span className="w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                  style={{ background: "hsl(var(--primary))" }}>
+                  {epBookmarkCount}
+                </span>
+              )}
+            </button>
+
+            {bookmarkOpen && seriesInfo && (
+              <BookmarkPanel
+                episodeId={baseEpisodeId}
+                seriesSlug={seriesSlug}
+                seriesTitle={seriesInfo.title}
+                seriesImage={seriesInfo.thumbnail ?? null}
+                episodeTitle={episodeTitle}
+                season={currentSeason}
+                episodeNum={episodeNum}
+                onNavigate={handleBookmarkNavigate}
+                onClose={() => setBookmarkOpen(false)}
+              />
+            )}
+          </div>
         )}
       </header>
 
@@ -245,7 +427,7 @@ export default function Watch() {
           )}
         </div>
 
-        {/* Nav row (episodes only) */}
+        {/* Prev / Next (episodes only) */}
         {!isMovie && (
           <div className="w-full mt-4 flex items-center justify-between gap-3 px-1">
             <Button variant="ghost" className="gap-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
@@ -268,7 +450,7 @@ export default function Watch() {
           <LanguageBar audio={audioLang} sub={subEnabled} onAudio={setAudioLang} onSub={setSubEnabled} />
         </div>
 
-        {/* Season episodes */}
+        {/* Episode list */}
         {!isMovie && seasonEpisodes.length > 0 && (
           <div className="w-full mt-8 space-y-4">
             <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest">Season {currentSeason} — Episodes</h2>
