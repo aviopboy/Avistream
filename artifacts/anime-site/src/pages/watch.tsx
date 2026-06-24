@@ -75,6 +75,7 @@ function BookmarkPanel({
   return createPortal(
     <div
       data-bookmark-panel
+      onMouseDown={(e) => e.stopPropagation()}
       className="w-72 rounded-2xl border overflow-hidden shadow-2xl"
       style={{
         position: "fixed", top, right, zIndex: 9999,
