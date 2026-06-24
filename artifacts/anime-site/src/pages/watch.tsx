@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRoute, Link, useLocation } from "wouter";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Loader2,
@@ -42,10 +43,11 @@ function parseTimestamp(s: string): string {
 /* ─── Bookmark Panel ─── */
 function BookmarkPanel({
   episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum,
-  onNavigate, onClose,
+  anchorRect, onNavigate, onClose,
 }: {
   episodeId: string; seriesSlug: string; seriesTitle: string; seriesImage: string | null;
   episodeTitle: string; season: string; episodeNum: string;
+  anchorRect: DOMRect | null;
   onNavigate: (episodeId: string, timestamp: string) => void;
   onClose: () => void;
 }) {
@@ -67,9 +69,17 @@ function BookmarkPanel({
     setTsInput("0:00");
   };
 
-  return (
-    <div className="absolute right-0 top-full mt-2 w-72 z-50 rounded-2xl border overflow-hidden shadow-2xl"
-      style={{ background: "hsl(var(--card))", borderColor: "rgba(255,255,255,0.1)" }}>
+  const top = anchorRect ? anchorRect.bottom + 8 : 64;
+  const right = anchorRect ? window.innerWidth - anchorRect.right : 16;
+
+  return createPortal(
+    <div
+      data-bookmark-panel
+      className="w-72 rounded-2xl border overflow-hidden shadow-2xl"
+      style={{
+        position: "fixed", top, right, zIndex: 9999,
+        background: "hsl(var(--card))", borderColor: "rgba(255,255,255,0.1)",
+      }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <div className="flex items-center gap-2">
@@ -142,7 +152,8 @@ function BookmarkPanel({
       <div className="px-4 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <p className="text-[10px] text-white/25 truncate">{episodeTitle}</p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -266,22 +277,29 @@ export default function Watch() {
     try { return localStorage.getItem(SUB_KEY) !== "false"; } catch { return true; }
   });
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
-  const bookmarkRef = useRef<HTMLDivElement>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const bookmarkBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => { try { localStorage.setItem(LANG_KEY, audioLang); } catch { /**/ } }, [audioLang]);
   useEffect(() => { try { localStorage.setItem(SUB_KEY, String(subEnabled)); } catch { /**/ } }, [subEnabled]);
 
-  // Close bookmark panel on outside click
+  // Close bookmark panel on outside click (panel is in a portal, so we check id)
   useEffect(() => {
     if (!bookmarkOpen) return;
     const handler = (e: MouseEvent) => {
-      if (bookmarkRef.current && !bookmarkRef.current.contains(e.target as Node)) {
-        setBookmarkOpen(false);
-      }
+      const target = e.target as HTMLElement;
+      const inBtn = bookmarkBtnRef.current?.contains(target);
+      const inPanel = target.closest("[data-bookmark-panel]");
+      if (!inBtn && !inPanel) setBookmarkOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [bookmarkOpen]);
+
+  const openBookmarks = () => {
+    setAnchorRect(bookmarkBtnRef.current?.getBoundingClientRect() ?? null);
+    setBookmarkOpen((v) => !v);
+  };
 
   const isDub = audioLang !== "japanese";
   const episodeId = isDub ? `${baseEpisodeId}--dub` : baseEpisodeId;
@@ -359,9 +377,10 @@ export default function Watch() {
 
         {/* Bookmark button with panel */}
         {!isMovie && (
-          <div ref={bookmarkRef} className="ml-auto relative">
+          <div className="ml-auto">
             <button
-              onClick={() => setBookmarkOpen((v) => !v)}
+              ref={bookmarkBtnRef}
+              onClick={openBookmarks}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border"
               style={bookmarkOpen || epBookmarkCount > 0
                 ? { background: "hsl(var(--primary) / 0.15)", borderColor: "hsl(var(--primary) / 0.4)", color: "hsl(var(--primary))" }
@@ -385,6 +404,7 @@ export default function Watch() {
                 episodeTitle={episodeTitle}
                 season={currentSeason}
                 episodeNum={episodeNum}
+                anchorRect={anchorRect}
                 onNavigate={handleBookmarkNavigate}
                 onClose={() => setBookmarkOpen(false)}
               />
