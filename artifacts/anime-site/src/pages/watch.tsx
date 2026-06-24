@@ -43,12 +43,12 @@ function parseTimestamp(s: string): string {
 /* ─── Bookmark Panel ─── */
 function BookmarkPanel({
   episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum,
-  anchorRect, onNavigate, onClose,
+  anchorRect, onPlay, onClose,
 }: {
   episodeId: string; seriesSlug: string; seriesTitle: string; seriesImage: string | null;
   episodeTitle: string; season: string; episodeNum: string;
   anchorRect: DOMRect | null;
-  onNavigate: (episodeId: string, timestamp: string) => void;
+  onPlay: (timestamp: string) => void;
   onClose: () => void;
 }) {
   const { items, addBookmark, removeBookmark } = useBookmarks();
@@ -142,7 +142,7 @@ function BookmarkPanel({
           <div className="py-1">
             {epBookmarks.map((b) => (
               <BookmarkRow key={b.id} bookmark={b}
-                onPlay={() => onNavigate(b.episodeId, b.timestamp)}
+                onPlay={() => onPlay(b.timestamp)}
                 onDelete={() => removeBookmark(b.id)} />
             ))}
           </div>
@@ -341,11 +341,19 @@ export default function Watch() {
     }
   }, [seriesInfo, seriesSlug]);
 
+  const [seekHint, setSeekHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!seekHint) return;
+    const t = setTimeout(() => setSeekHint(null), 6000);
+    return () => clearTimeout(t);
+  }, [seekHint]);
+
   const goToEpisode = (id: string) => setLocation(`/watch/${id}`);
 
-  const handleBookmarkNavigate = (epId: string, _timestamp: string) => {
+  const handleBookmarkPlay = (timestamp: string) => {
     setBookmarkOpen(false);
-    goToEpisode(epId);
+    setSeekHint(timestamp);
   };
 
   return (
@@ -406,7 +414,7 @@ export default function Watch() {
                 season={currentSeason}
                 episodeNum={episodeNum}
                 anchorRect={anchorRect}
-                onNavigate={handleBookmarkNavigate}
+                onPlay={handleBookmarkPlay}
                 onClose={() => setBookmarkOpen(false)}
               />
             )}
@@ -447,6 +455,20 @@ export default function Watch() {
             </div>
           )}
         </div>
+
+        {/* Seek hint banner */}
+        {seekHint && (
+          <div className="w-full mt-3 flex items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: "hsl(var(--primary) / 0.12)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
+            <Clock className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
+            <p className="text-sm text-white flex-1">
+              Seek the video to <span className="font-mono font-bold" style={{ color: "hsl(var(--primary))" }}>{seekHint}</span> to continue from your bookmark.
+            </p>
+            <button onClick={() => setSeekHint(null)} className="text-white/30 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Prev / Next (episodes only) */}
         {!isMovie && (
