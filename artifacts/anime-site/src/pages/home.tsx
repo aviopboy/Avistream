@@ -1,27 +1,221 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "wouter";
-import { Play, Flame, Tv, Sparkles, Film, Clock, Bookmark, Search, X } from "lucide-react";
-import { useGetAnimeHome, useSearchAnime, getSearchAnimeQueryKey } from "@workspace/api-client-react";
+import {
+  Play, Flame, Tv, Sparkles, Film, Clock,
+  Bookmark, Search, X, Info, ChevronLeft, ChevronRight,
+} from "lucide-react";
+import {
+  useGetAnimeHome, useSearchAnime, getSearchAnimeQueryKey,
+} from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AnimeCard } from "@workspace/api-client-react";
 import { useRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useDebounce } from "@/hooks/use-debounce";
 
+/* ─────────────────────────────────────────
+   Featured anime config (descriptions/genres are static;
+   image + slug come from the live API search)
+───────────────────────────────────────── */
+const FEATURED = [
+  {
+    query: "Naruto Shippuden",
+    description:
+      "Naruto Uzumaki, a young ninja shunned by his village, carries a powerful demon fox within him. Determined to become Hokage, he fights to protect everyone he loves.",
+    genres: ["Action", "Adventure", "Shounen"],
+  },
+  {
+    query: "One Piece",
+    description:
+      "Monkey D. Luffy sets sail to find the legendary One Piece treasure and become King of the Pirates — joined by a crew of unforgettable misfits.",
+    genres: ["Action", "Adventure", "Comedy"],
+  },
+  {
+    query: "Dragon Ball Z",
+    description:
+      "Goku and his friends defend Earth from increasingly powerful foes — from Saiyans to god-like beings — pushing the limits of power at every turn.",
+    genres: ["Action", "Martial Arts", "Shounen"],
+  },
+  {
+    query: "Attack on Titan",
+    description:
+      "Humanity cowers behind massive walls to survive monstrous Titans. Eren Yeager vows revenge after witnessing the horror they bring — and discovers a truth far darker.",
+    genres: ["Action", "Drama", "Dark Fantasy"],
+  },
+  {
+    query: "Demon Slayer",
+    description:
+      "Tanjiro Kamado trains to become a demon slayer after his family is slaughtered, carrying his demon-turned sister Nezuko on a journey of hope and heartbreak.",
+    genres: ["Action", "Supernatural", "Shounen"],
+  },
+];
+
+/* ─────────────────────────────────────────
+   Hero Carousel
+───────────────────────────────────────── */
+function useFeaturedSlides() {
+  const q0 = FEATURED[0].query;
+  const q1 = FEATURED[1].query;
+  const q2 = FEATURED[2].query;
+  const q3 = FEATURED[3].query;
+  const q4 = FEATURED[4].query;
+
+  const s0 = useSearchAnime({ q: q0 }, { query: { queryKey: getSearchAnimeQueryKey({ q: q0 }) } });
+  const s1 = useSearchAnime({ q: q1 }, { query: { queryKey: getSearchAnimeQueryKey({ q: q1 }) } });
+  const s2 = useSearchAnime({ q: q2 }, { query: { queryKey: getSearchAnimeQueryKey({ q: q2 }) } });
+  const s3 = useSearchAnime({ q: q3 }, { query: { queryKey: getSearchAnimeQueryKey({ q: q3 }) } });
+  const s4 = useSearchAnime({ q: q4 }, { query: { queryKey: getSearchAnimeQueryKey({ q: q4 }) } });
+
+  return [s0, s1, s2, s3, s4].map((s, i) => {
+    const item = s.data?.results?.[0];
+    return item
+      ? { ...FEATURED[i], slug: item.slug, title: item.title, image: item.image }
+      : null;
+  });
+}
+
+type Slide = NonNullable<ReturnType<typeof useFeaturedSlides>[number]>;
+
+function HeroCarousel() {
+  const slides = useFeaturedSlides();
+  const ready = slides.filter(Boolean) as Slide[];
+  const [idx, setIdx] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  const go = useCallback((next: number) => {
+    setFading(true);
+    setTimeout(() => {
+      setIdx(next);
+      setFading(false);
+    }, 300);
+  }, []);
+
+  const prev = () => go((idx - 1 + ready.length) % ready.length);
+  const next = () => go((idx + 1) % ready.length);
+
+  useEffect(() => {
+    if (ready.length === 0) return;
+    const t = setInterval(() => go((idx + 1) % ready.length), 6000);
+    return () => clearInterval(t);
+  }, [idx, ready.length, go]);
+
+  if (ready.length === 0) {
+    return (
+      <div className="w-full rounded-2xl overflow-hidden bg-white/5 animate-pulse"
+        style={{ height: "420px" }} />
+    );
+  }
+
+  const slide = ready[idx % ready.length]!;
+
+  return (
+    <div className="relative w-full rounded-2xl overflow-hidden select-none"
+      style={{ height: "clamp(280px, 45vw, 500px)" }}>
+
+      {/* Background image */}
+      <div className="absolute inset-0 transition-opacity duration-300"
+        style={{ opacity: fading ? 0 : 1 }}>
+        {slide.image && (
+          <img src={slide.image} alt=""
+            className="w-full h-full object-cover object-top"
+            style={{ filter: "brightness(0.55)" }} />
+        )}
+      </div>
+
+      {/* Gradients */}
+      <div className="absolute inset-0"
+        style={{ background: "linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)" }} />
+      <div className="absolute inset-0"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)" }} />
+
+      {/* Content */}
+      <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-8 md:pb-10"
+        style={{ transition: "opacity 0.3s", opacity: fading ? 0 : 1 }}>
+
+        {/* Genre pills */}
+        <div className="flex gap-2 flex-wrap mb-3">
+          {slide.genres.map((g) => (
+            <span key={g}
+              className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white/80"
+              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}>
+              {g}
+            </span>
+          ))}
+        </div>
+
+        {/* Title */}
+        <h2 className="text-2xl md:text-4xl font-extrabold text-white leading-tight mb-2 drop-shadow-lg"
+          style={{ textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>
+          {slide.title}
+        </h2>
+
+        {/* Description */}
+        <p className="text-sm md:text-base text-white/70 leading-relaxed max-w-xl mb-5 line-clamp-2 md:line-clamp-3">
+          {slide.description}
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-3 flex-wrap">
+          <Link href={`/series/${slide.slug}`}>
+            <button className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
+              style={{ background: "hsl(var(--primary))", boxShadow: "0 4px 20px hsl(var(--primary) / 0.4)" }}>
+              <Play className="w-4 h-4 fill-white" />
+              Start Watching
+            </button>
+          </Link>
+          <Link href={`/series/${slide.slug}`}>
+            <button className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:bg-white/15"
+              style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)" }}>
+              <Info className="w-4 h-4" />
+              More Info
+            </button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Prev / Next arrows */}
+      <button onClick={prev}
+        className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-white/20 hidden sm:flex"
+        style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
+        <ChevronLeft className="w-5 h-5 text-white" />
+      </button>
+      <button onClick={next}
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-white/20 hidden sm:flex"
+        style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
+        <ChevronRight className="w-5 h-5 text-white" />
+      </button>
+
+      {/* Dots */}
+      <div className="absolute bottom-3 right-4 flex gap-1.5 items-center">
+        {ready.map((_, i) => (
+          <button key={i} onClick={() => go(i)}
+            className="rounded-full transition-all"
+            style={{
+              width: i === idx ? "20px" : "6px",
+              height: "6px",
+              background: i === idx ? "hsl(var(--primary))" : "rgba(255,255,255,0.35)",
+            }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   Reusable card / section components
+───────────────────────────────────────── */
 function Card({ anime }: { anime: AnimeCard }) {
   return (
     <Link href={`/series/${anime.slug}`}>
       <div className="group relative rounded-lg overflow-hidden bg-secondary cursor-pointer transition-transform duration-200 hover:-translate-y-1"
         style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
         <div className="aspect-[2/3] overflow-hidden">
-          {anime.image ? (
-            <img src={anime.image} alt={anime.title}
-              className="w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-75" loading="lazy" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-secondary">
-              <Tv className="w-8 h-8 text-muted-foreground" />
-            </div>
-          )}
+          {anime.image
+            ? <img src={anime.image} alt={anime.title}
+                className="w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-75" loading="lazy" />
+            : <div className="w-full h-full flex items-center justify-center bg-secondary">
+                <Tv className="w-8 h-8 text-muted-foreground" />
+              </div>}
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-3/4 w-11 h-11 rounded-full flex items-center justify-center"
@@ -81,14 +275,13 @@ function ScrollSection({ title, icon, items, loading }: {
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="flex-shrink-0 w-[130px]"><CardSkeleton /></div>)
-          : items.map((a) => <div key={a.slug} className="flex-shrink-0 w-[130px]"><Card anime={a} /></div>)
-        }
+          : items.map((a) => <div key={a.slug} className="flex-shrink-0 w-[130px]"><Card anime={a} /></div>)}
       </div>
     </section>
   );
 }
 
-function BookmarkCard({ slug, title, image, episodeId, episodeTitle }: {
+function BookmarkCard({ title, image, episodeId, episodeTitle }: {
   slug: string; title: string; image: string | null; episodeId: string; episodeTitle: string;
 }) {
   return (
@@ -115,6 +308,9 @@ function BookmarkCard({ slug, title, image, episodeId, episodeTitle }: {
   );
 }
 
+/* ─────────────────────────────────────────
+   Main Home Page
+───────────────────────────────────────── */
 export default function Home() {
   const { data: homeData, isLoading } = useGetAnimeHome();
   const { items: recentItems, refresh } = useRecentWatched();
@@ -135,16 +331,15 @@ export default function Home() {
   const onAir = homeData?.data?.on_air ?? [];
   const newArrivals = homeData?.data?.new_arrivals ?? [];
   const movies = homeData?.data?.movies ?? [];
+  const searchResults = searchData?.results ?? [];
 
   const recentCards: AnimeCard[] = recentItems.map((r) => ({
     slug: r.slug, title: r.title, image: r.image, url: null,
   }));
 
-  const searchResults = searchData?.results ?? [];
-
   return (
     <div className="min-h-screen" style={{ background: "hsl(var(--background))" }}>
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-12">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-10">
 
         {/* Search bar */}
         <div className="relative max-w-2xl mx-auto">
@@ -170,21 +365,22 @@ export default function Home() {
           )}
         </div>
 
-        {/* Search results */}
         {isSearching ? (
+          /* ── Search results ── */
           <section>
             <SectionHeader title={`Results for "${debouncedQ}"`} icon={<Search className="w-4 h-4" />} />
-            {searchLoading ? (
-              <div className={GRID}>{Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />)}</div>
-            ) : searchResults.length > 0 ? (
-              <div className={GRID}>{searchResults.map((a) => <Card key={a.slug} anime={a} />)}</div>
-            ) : (
-              <div className="py-20 text-center text-muted-foreground">No results for &quot;{debouncedQ}&quot;</div>
-            )}
+            {searchLoading
+              ? <div className={GRID}>{Array.from({ length: 12 }).map((_, i) => <CardSkeleton key={i} />)}</div>
+              : searchResults.length > 0
+                ? <div className={GRID}>{searchResults.map((a) => <Card key={a.slug} anime={a} />)}</div>
+                : <div className="py-20 text-center text-muted-foreground">No results for &quot;{debouncedQ}&quot;</div>}
           </section>
         ) : (
           <>
-            {/* Bookmarks */}
+            {/* ── Hero carousel ── */}
+            <HeroCarousel />
+
+            {/* ── Bookmarks ── */}
             {bookmarkItems.length > 0 && (
               <section>
                 <SectionHeader title="Bookmarks" icon={<Bookmark className="w-4 h-4" />} />
@@ -197,21 +393,21 @@ export default function Home() {
               </section>
             )}
 
-            {/* Recent Watched */}
+            {/* ── Recently Watched ── */}
             {recentCards.length > 0 && (
               <ScrollSection title="Recently Watched" icon={<Clock className="w-4 h-4" />} items={recentCards} loading={false} />
             )}
 
-            {/* Fresh Drops */}
+            {/* ── Fresh Drops ── */}
             <GridSection title="Fresh Drops" icon={<Flame className="w-4 h-4" />} items={freshDrops} loading={isLoading} />
 
-            {/* Trending */}
+            {/* ── Trending ── */}
             <ScrollSection title="Trending Now" icon={<Sparkles className="w-4 h-4" />} items={onAir} loading={isLoading} />
 
-            {/* Popular */}
+            {/* ── Popular ── */}
             <ScrollSection title="All Time Popular" icon={<Tv className="w-4 h-4" />} items={newArrivals} loading={isLoading} />
 
-            {/* Movies */}
+            {/* ── Movies ── */}
             {(isLoading || movies.length > 0) && (
               <ScrollSection title="Anime Movies" icon={<Film className="w-4 h-4" />} items={movies} loading={isLoading} />
             )}
