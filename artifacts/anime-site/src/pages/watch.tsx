@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useRoute, Link, useLocation } from "wouter";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Loader2,
-  AlertCircle, Play, Tv, Captions, Bookmark, Trash2, Plus, X, Clock,
+  AlertCircle, Play, Tv, Captions, Bookmark, Trash2, Plus, X, Clock, Pencil, Check,
 } from "lucide-react";
 import {
   useGetAnimeEpisode, getGetAnimeEpisodeQueryKey,
@@ -51,7 +51,7 @@ function BookmarkPanel({
   onPlay: (timestamp: string) => void;
   onClose: () => void;
 }) {
-  const { items, addBookmark, removeBookmark } = useBookmarks();
+  const { items, addBookmark, removeBookmark, updateBookmark } = useBookmarks();
   const epBookmarks = items.filter((b) => b.episodeId === episodeId);
 
   const [adding, setAdding] = useState(false);
@@ -143,7 +143,8 @@ function BookmarkPanel({
             {epBookmarks.map((b) => (
               <BookmarkRow key={b.id} bookmark={b}
                 onPlay={() => onPlay(b.timestamp)}
-                onDelete={() => removeBookmark(b.id)} />
+                onDelete={() => removeBookmark(b.id)}
+                onEdit={(ts) => updateBookmark(b.id, ts)} />
             ))}
           </div>
         )}
@@ -158,9 +159,48 @@ function BookmarkPanel({
   );
 }
 
-function BookmarkRow({ bookmark, onPlay, onDelete }: {
-  bookmark: BookmarkType; onPlay: () => void; onDelete: () => void;
+function BookmarkRow({ bookmark, onPlay, onDelete, onEdit }: {
+  bookmark: BookmarkType; onPlay: () => void; onDelete: () => void; onEdit: (ts: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [tsInput, setTsInput] = useState(bookmark.timestamp);
+  const editRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) setTimeout(() => editRef.current?.focus(), 30);
+  }, [editing]);
+
+  const commitEdit = () => {
+    const ts = parseTimestamp(tsInput.trim() || bookmark.timestamp);
+    onEdit(ts);
+    setTsInput(ts);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+        <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
+        <input
+          ref={editRef}
+          value={tsInput}
+          onChange={(e) => setTsInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
+          className="flex-1 bg-transparent text-sm font-mono font-semibold text-white outline-none min-w-0"
+        />
+        <button onClick={() => setEditing(false)}
+          className="text-xs text-white/30 hover:text-white/60 transition-colors px-1">
+          Cancel
+        </button>
+        <button onClick={commitEdit}
+          className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+          style={{ background: "hsl(var(--primary))" }}>
+          <Check className="w-3 h-3 text-white" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
       <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
@@ -178,6 +218,11 @@ function BookmarkRow({ bookmark, onPlay, onDelete }: {
         style={{ background: "hsl(var(--primary))" }}
         title="Play from this timestamp">
         <Play className="w-3 h-3 fill-white text-white ml-0.5" />
+      </button>
+      <button onClick={() => { setTsInput(bookmark.timestamp); setEditing(true); }}
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
+        title="Edit timestamp">
+        <Pencil className="w-3 h-3 text-white/60" />
       </button>
       <button onClick={onDelete}
         className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20"

@@ -44,7 +44,13 @@ export function useBookmarks() {
     setItems(next);
   }, []);
 
-  return { items, refresh, addBookmark, removeBookmark };
+  const updateBookmark = useCallback((id: string, timestamp: string) => {
+    const next = load().map((x) => x.id === id ? { ...x, timestamp } : x);
+    persist(next);
+    setItems(next);
+  }, []);
+
+  return { items, refresh, addBookmark, removeBookmark, updateBookmark };
 }
 
 export function getEpisodeBookmarks(episodeId: string): Bookmark[] {
