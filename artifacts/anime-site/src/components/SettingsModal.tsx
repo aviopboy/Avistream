@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Palette, User, Check, Image } from "lucide-react";
+import { X, Palette, User, Check, Image, FolderOpen } from "lucide-react";
 import { ACCENT_COLORS, BG_PRESETS, useThemeContext } from "@/hooks/use-theme";
 
 type Tab = "appearance" | "account";
@@ -8,14 +8,33 @@ type Tab = "appearance" | "account";
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("appearance");
   const { settings, setAccent, setBgPreset, setBgImage } = useThemeContext();
-  const [urlInput, setUrlInput] = useState(settings.bgImage);
+  const [urlInput, setUrlInput] = useState(
+    settings.bgPreset === "custom" && !settings.bgImage.startsWith("data:") ? settings.bgImage : ""
+  );
   const urlRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function applyCustomUrl() {
     const v = urlInput.trim();
     if (!v) return;
     setBgPreset("custom");
     setBgImage(v);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (dataUrl) {
+        setBgPreset("custom");
+        setBgImage(dataUrl);
+        setUrlInput("");
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   }
 
   return createPortal(
@@ -112,15 +131,36 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                   style={{ border: settings.bgPreset === "custom" ? "2px solid hsl(var(--primary))" : "2px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                     <Image className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
-                    <span className="text-xs font-semibold text-white/70">Custom Image URL</span>
+                    <span className="text-xs font-semibold text-white/70">Custom Background</span>
                   </div>
+
+                  {/* Choose from file */}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-colors hover:bg-white/5 border-b"
+                    style={{ color: "hsl(var(--primary))", borderColor: "rgba(255,255,255,0.07)" }}>
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    Choose from file
+                    {settings.bgPreset === "custom" && settings.bgImage.startsWith("data:") && (
+                      <span className="text-white/40 font-normal">(image loaded)</span>
+                    )}
+                  </button>
+
+                  {/* URL input */}
                   <div className="flex gap-2 p-3">
                     <input
                       ref={urlRef}
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") applyCustomUrl(); }}
-                      placeholder="https://example.com/bg.jpg"
+                      placeholder="Or paste image URL…"
                       className="flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/20 min-w-0"
                     />
                     <button onClick={applyCustomUrl}
@@ -129,6 +169,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                       Apply
                     </button>
                   </div>
+
                   {settings.bgPreset === "custom" && settings.bgImage && (
                     <button onClick={() => { setBgPreset("dark"); setBgImage(""); setUrlInput(""); }}
                       className="w-full py-2 text-xs text-white/30 hover:text-white transition-colors border-t text-center"

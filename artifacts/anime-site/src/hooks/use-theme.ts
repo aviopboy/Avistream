@@ -45,21 +45,23 @@ export function applyTheme(s: ThemeSettings) {
   root.style.setProperty("--primary-border", s.accent);
   root.style.setProperty("--accent-border", s.accent);
 
+  const DARK_BG = "240 15% 2.7%";
   const preset = BG_PRESETS.find((b) => b.id === s.bgPreset);
+
   if (s.bgPreset === "custom" && s.bgImage) {
-    root.style.setProperty("--background", "240 15% 2.7%");
-    document.body.style.cssText = [
-      `background-image: url('${s.bgImage}')`,
-      "background-size: cover",
-      "background-position: center",
-      "background-attachment: fixed",
-    ].join(";");
+    root.style.setProperty("--background", DARK_BG);
+    document.body.style.backgroundImage = `url('${s.bgImage}')`;
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundPosition = "center";
+    document.body.style.backgroundAttachment = "fixed";
+    document.body.style.backgroundRepeat = "no-repeat";
   } else {
-    document.body.style.removeProperty("background-image");
-    document.body.style.removeProperty("background-size");
-    document.body.style.removeProperty("background-position");
-    document.body.style.removeProperty("background-attachment");
-    root.style.setProperty("--background", preset?.hsl ?? DEFAULT.accent);
+    document.body.style.backgroundImage = "";
+    document.body.style.backgroundSize = "";
+    document.body.style.backgroundPosition = "";
+    document.body.style.backgroundAttachment = "";
+    document.body.style.backgroundRepeat = "";
+    root.style.setProperty("--background", preset?.hsl ?? DARK_BG);
   }
 }
 
