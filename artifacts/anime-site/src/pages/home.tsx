@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link } from "wouter";
 import {
   Play, Flame, Tv, Sparkles, Film, Clock,
@@ -251,6 +251,24 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
+/* Hook: converts vertical mouse-wheel to horizontal scroll on desktop */
+function useHorizScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY * 2;
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, []);
+  return ref;
+}
+
 const GRID = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3";
 
 function GridSection({ title, icon, items, loading }: {
@@ -269,10 +287,11 @@ function GridSection({ title, icon, items, loading }: {
 function ScrollSection({ title, icon, items, loading }: {
   title: string; icon: React.ReactNode; items: AnimeCard[]; loading: boolean;
 }) {
+  const rowRef = useHorizScroll();
   return (
     <section>
       <SectionHeader title={title} icon={icon} />
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+      <div ref={rowRef} className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="flex-shrink-0 w-[130px]"><CardSkeleton /></div>)
           : items.map((a) => <div key={a.slug} className="flex-shrink-0 w-[130px]"><Card anime={a} /></div>)}

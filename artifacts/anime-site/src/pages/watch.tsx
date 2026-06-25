@@ -220,12 +220,18 @@ function BookmarkRow({ bookmark, onPlay, onDelete, onEdit }: {
         <Play className="w-3 h-3 fill-white text-white ml-0.5" />
       </button>
       <button onClick={() => { setTsInput(bookmark.timestamp); setEditing(true); }}
-        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:bg-white/10"
+        style={{ opacity: 0.45 }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.45")}
         title="Edit timestamp">
-        <Pencil className="w-3 h-3 text-white/60" />
+        <Pencil className="w-3 h-3 text-white" />
       </button>
       <button onClick={onDelete}
-        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20"
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:bg-red-500/20"
+        style={{ opacity: 0.45 }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.45")}
         title="Delete bookmark">
         <Trash2 className="w-3 h-3 text-red-400" />
       </button>

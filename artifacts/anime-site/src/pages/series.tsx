@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { useRoute, Link } from "wouter";
-import { Play, ListVideo, ChevronDown, Film } from "lucide-react";
+import { Play, ListVideo, Film, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGetAnimeSeries, getGetAnimeSeriesQueryKey } from "@workspace/api-client-react";
 import type { FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 
 type GroupedSeason = { number: string; episodes: FlatEpisode[] };
 
@@ -21,10 +18,52 @@ function groupBySeason(episodes: FlatEpisode[]): GroupedSeason[] {
   return Array.from(map.values()).sort((a, b) => Number(a.number) - Number(b.number));
 }
 
+/* Horizontal scrollable season pills */
+function SeasonPicker({
+  seasons,
+  active,
+  onChange,
+}: {
+  seasons: GroupedSeason[];
+  active: string;
+  onChange: (s: string) => void;
+}) {
+  if (seasons.length <= 1) return null;
+
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      {seasons.map((s) => {
+        const isActive = s.number === active;
+        return (
+          <button
+            key={s.number}
+            onClick={() => onChange(s.number)}
+            className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
+            style={
+              isActive
+                ? { background: "hsl(var(--primary))", color: "#fff" }
+                : {
+                    background: "hsl(var(--secondary))",
+                    color: "hsl(var(--muted-foreground))",
+                    border: "1px solid hsl(var(--border))",
+                  }
+            }
+          >
+            S{s.number}
+            <span className="ml-1 opacity-60">({s.episodes.length})</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Series() {
   const [, params] = useRoute("/series/:slug");
   const slug = params?.slug ?? "";
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [epPage, setEpPage] = useState(0);
+  const EPS_PER_PAGE = 48;
 
   const { data: seriesResponse, isLoading, isError } = useGetAnimeSeries(slug, {
     query: { enabled: !!slug, queryKey: getGetAnimeSeriesQueryKey(slug) },
@@ -73,6 +112,14 @@ export default function Series() {
   const activeSeason = selectedSeason ?? seasons[0]?.number ?? null;
   const activeEpisodes = seasons.find((s) => s.number === activeSeason)?.episodes ?? [];
 
+  const totalPages = Math.ceil(activeEpisodes.length / EPS_PER_PAGE);
+  const pageEps = activeEpisodes.slice(epPage * EPS_PER_PAGE, (epPage + 1) * EPS_PER_PAGE);
+
+  function changeSeason(s: string) {
+    setSelectedSeason(s);
+    setEpPage(0);
+  }
+
   return (
     <div className="min-h-screen pb-20" style={{ background: "hsl(var(--background))" }}>
       {/* Banner */}
@@ -80,10 +127,8 @@ export default function Series() {
         style={{ background: "hsl(var(--secondary))" }}>
         {series.thumbnail && (
           <img src={series.thumbnail} alt=""
-            className="absolute inset-0 w-full h-full object-cover object-top"
-            style={{ filter: "blur(0px)" }} />
+            className="absolute inset-0 w-full h-full object-cover object-top" />
         )}
-        {/* Gradients */}
         <div className="absolute inset-0"
           style={{ background: "linear-gradient(90deg, rgba(6,6,8,0.95) 0%, rgba(6,6,8,0.55) 55%, transparent 100%)" }} />
         <div className="absolute inset-0"
@@ -104,7 +149,6 @@ export default function Series() {
 
         {/* Info */}
         <div className="flex-1 md:mt-28 text-center md:text-left space-y-3">
-          {/* Badges row */}
           <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
             {isMovie && (
               <span className="px-2 py-0.5 rounded text-xs font-bold"
@@ -125,8 +169,7 @@ export default function Series() {
             ))}
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-foreground leading-tight"
-            data-testid="text-series-title">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
             {series.title}
           </h1>
 
@@ -136,21 +179,18 @@ export default function Series() {
             </p>
           )}
 
-          {/* CTA buttons */}
           <div className="flex gap-3 justify-center md:justify-start flex-wrap pt-1">
             {isMovie && moviePlayer ? (
               <Link href={`/watch/${slug}`}>
                 <Button size="lg" className="rounded-full px-7 gap-2 font-bold"
-                  style={{ background: "hsl(var(--primary))", color: "#fff" }}
-                  data-testid="button-watch-movie">
+                  style={{ background: "hsl(var(--primary))", color: "#fff" }}>
                   <Play className="w-4 h-4 fill-white" /> Watch Movie
                 </Button>
               </Link>
             ) : firstEp ? (
               <Link href={`/watch/${firstEp.id}`}>
                 <Button size="lg" className="rounded-full px-7 gap-2 font-bold"
-                  style={{ background: "hsl(var(--primary))", color: "#fff" }}
-                  data-testid="button-start-watching">
+                  style={{ background: "hsl(var(--primary))", color: "#fff" }}>
                   <Play className="w-4 h-4 fill-white" /> Start Watching
                 </Button>
               </Link>
@@ -169,41 +209,20 @@ export default function Series() {
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Header */}
-              <div className="flex items-center justify-between gap-4">
+              {/* Header + season picker */}
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-[3px] h-5 rounded-full" style={{ background: "hsl(var(--primary))" }} />
                   <h2 className="text-lg font-bold">Episodes</h2>
                 </div>
-                {seasons.length > 1 && (
-                  <Select value={activeSeason ?? ""} onValueChange={setSelectedSeason}>
-                    <SelectTrigger
-                      className="w-40 rounded-lg text-sm"
-                      style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
-                      data-testid="select-season">
-                      <div className="flex items-center gap-2">
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                        <SelectValue placeholder="Season" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-                      {seasons.map((s) => (
-                        <SelectItem key={s.number} value={s.number}
-                          className="text-sm focus:bg-white/10"
-                          data-testid={`option-season-${s.number}`}>
-                          Season {s.number}
-                          <span className="ml-2 text-muted-foreground text-xs">({s.episodes.length} eps)</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                {/* Season pills — always horizontal scroll, fits any count */}
+                <SeasonPicker seasons={seasons} active={activeSeason ?? ""} onChange={changeSeason} />
               </div>
 
               {/* Episode grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                {activeEpisodes.map((ep) => (
-                  <Link key={ep.id} href={`/watch/${ep.id}`} data-testid={`link-episode-${ep.id}`}>
+                {pageEps.map((ep) => (
+                  <Link key={ep.id} href={`/watch/${ep.id}`}>
                     <div className="group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all"
                       style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "hsl(var(--primary) / 0.4)"; }}
@@ -213,7 +232,7 @@ export default function Series() {
                           <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                         </div>
                       ) : (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{ background: "rgba(255,107,53,0.1)", color: "hsl(var(--primary))" }}>
                           <Play className="w-3.5 h-3.5 ml-0.5 fill-current" />
                         </div>
@@ -228,6 +247,37 @@ export default function Series() {
                   </Link>
                 ))}
               </div>
+
+              {/* Episode pagination if many eps */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setEpPage((p) => Math.max(0, p - 1))}
+                    disabled={epPage === 0}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1.5">
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button key={i} onClick={() => setEpPage(i)}
+                        className="w-7 h-7 rounded-full text-xs font-bold transition-all"
+                        style={i === epPage
+                          ? { background: "hsl(var(--primary))", color: "#fff" }
+                          : { background: "hsl(var(--secondary))", color: "hsl(var(--muted-foreground))", border: "1px solid hsl(var(--border))" }}>
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setEpPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={epPage === totalPages - 1}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
