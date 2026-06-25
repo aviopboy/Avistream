@@ -37,6 +37,34 @@ function load(): ThemeSettings {
   return DEFAULT;
 }
 
+function setGlobalBgStyle(imageUrl: string) {
+  const STYLE_ID = "avistream-bg-override";
+  let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!el) {
+    el = document.createElement("style");
+    el.id = STYLE_ID;
+    document.head.appendChild(el);
+  }
+  if (imageUrl) {
+    const safe = imageUrl.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    el.textContent = `
+      body {
+        background-image: url('${safe}') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-attachment: fixed !important;
+        background-repeat: no-repeat !important;
+        background-color: transparent !important;
+      }
+      .min-h-screen {
+        background: rgba(6,6,8,0.82) !important;
+      }
+    `;
+  } else {
+    el.textContent = "";
+  }
+}
+
 export function applyTheme(s: ThemeSettings) {
   const root = document.documentElement;
   root.style.setProperty("--primary", s.accent);
@@ -50,17 +78,9 @@ export function applyTheme(s: ThemeSettings) {
 
   if (s.bgPreset === "custom" && s.bgImage) {
     root.style.setProperty("--background", DARK_BG);
-    document.body.style.backgroundImage = `url('${s.bgImage}')`;
-    document.body.style.backgroundSize = "cover";
-    document.body.style.backgroundPosition = "center";
-    document.body.style.backgroundAttachment = "fixed";
-    document.body.style.backgroundRepeat = "no-repeat";
+    setGlobalBgStyle(s.bgImage);
   } else {
-    document.body.style.backgroundImage = "";
-    document.body.style.backgroundSize = "";
-    document.body.style.backgroundPosition = "";
-    document.body.style.backgroundAttachment = "";
-    document.body.style.backgroundRepeat = "";
+    setGlobalBgStyle("");
     root.style.setProperty("--background", preset?.hsl ?? DARK_BG);
   }
 }

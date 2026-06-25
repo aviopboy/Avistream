@@ -39,6 +39,12 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (query.trim().length > 1) {
+      setLocation(`/anime?q=${encodeURIComponent(query.trim())}`);
+      setQuery("");
+      setMobileSearchOpen(false);
+      setMobileOpen(false);
+    }
   }
 
   function isActive(href: string) {

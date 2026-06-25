@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Play, Flame, Tv, Sparkles, Film, Clock,
   Bookmark, Search, X, Info, ChevronLeft, ChevronRight,
@@ -335,6 +335,7 @@ export default function Home() {
   const { items: recentItems, refresh } = useRecentWatched();
   const { items: bookmarkItems } = useBookmarks();
 
+  const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
   const debouncedQ = useDebounce(query, 350);
   const isSearching = debouncedQ.length > 1;
@@ -367,6 +368,12 @@ export default function Home() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && query.trim().length > 1) {
+                setLocation(`/anime?q=${encodeURIComponent(query.trim())}`);
+                setQuery("");
+              }
+            }}
             placeholder="Search anime, movies..."
             className="w-full pl-11 pr-10 py-3.5 text-sm rounded-2xl outline-none transition-colors"
             style={{
