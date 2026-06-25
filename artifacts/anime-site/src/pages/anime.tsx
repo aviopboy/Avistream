@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useSearch, Link } from "wouter";
 import { Tv } from "lucide-react";
 import {
   useGetAnimeHome,
@@ -55,8 +55,8 @@ function SectionHeader({ title }: { title: string }) {
 const GRID = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3";
 
 export default function Anime() {
-  const [location] = useLocation();
-  const searchParam = new URLSearchParams(location.split("?")[1] ?? "").get("q") ?? "";
+  const searchStr = useSearch();
+  const searchParam = new URLSearchParams(searchStr).get("q") ?? "";
   const [query, setQuery] = useState(searchParam);
   const debouncedQ = useDebounce(query, 350);
   const isSearching = debouncedQ.length > 1;
