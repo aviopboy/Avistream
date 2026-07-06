@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Menu, X, Tv, Settings, User } from "lucide-react";
+import { Search, Menu, X, Tv, Settings, User, LogIn } from "lucide-react";
+import { useUser, useClerk, Show } from "@clerk/react";
 import { useSearchAnime, getSearchAnimeQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { SettingsModal } from "@/components/SettingsModal";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -17,11 +20,41 @@ type NavbarProps = {
   onSettingsClose: () => void;
 };
 
+// Small avatar for navbar
+function NavAvatar() {
+  const { user } = useUser();
+  const initials = [user?.firstName, user?.lastName]
+    .filter(Boolean)
+    .map((n) => n![0])
+    .join("")
+    .toUpperCase() || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || "?";
+
+  if (user?.imageUrl) {
+    return (
+      <img
+        src={user.imageUrl}
+        alt="Profile"
+        className="w-7 h-7 rounded-full object-cover ring-2 ring-primary/40"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-primary/40"
+      style={{ background: "linear-gradient(135deg, #FF6B35 0%, #e55a25 100%)" }}
+    >
+      {initials}
+    </div>
+  );
+}
+
 export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: NavbarProps) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { signOut } = useClerk();
 
   const debouncedQ = useDebounce(query, 350);
   const { data: searchData } = useSearchAnime(
@@ -86,7 +119,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
         </div>
 
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1.5">
           {/* Mobile search toggle */}
           <button
             onClick={() => { setMobileSearchOpen((v) => !v); setMobileOpen(false); }}
@@ -97,16 +130,34 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
             <Search className="w-5 h-5" />
           </button>
 
-          {/* Account — always visible */}
-          <button
-            onClick={() => { onSettingsToggle(); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border hidden md:flex"
-            style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
-            title="Account (Coming Soon)"
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Account</span>
-          </button>
+          {/* Auth buttons — desktop */}
+          <div className="hidden md:flex items-center gap-1.5">
+            {/* Signed in: avatar → account page */}
+            <Show when="signed-in">
+              <Link href="/account">
+                <button
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all border"
+                  style={{ background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)" }}
+                >
+                  <NavAvatar />
+                  <span className="text-white/70">Account</span>
+                </button>
+              </Link>
+            </Show>
+
+            {/* Signed out: sign-in button */}
+            <Show when="signed-out">
+              <Link href="/sign-in">
+                <button
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
+                  style={{ background: "hsl(var(--primary))", color: "#fff" }}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign in</span>
+                </button>
+              </Link>
+            </Show>
+          </div>
 
           {/* Settings */}
           <button
@@ -182,7 +233,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
         </div>
       )}
 
-      {/* Mobile nav links */}
+      {/* Mobile nav drawer */}
       {mobileOpen && (
         <div className="fixed top-[60px] left-0 right-0 z-40 px-4 pt-3 pb-4 flex flex-col gap-1 md:hidden"
           style={{ background: "hsl(var(--card))", borderBottom: "1px solid hsl(var(--border))" }}>
@@ -197,6 +248,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
               </span>
             </Link>
           ))}
+
           <div className="mt-2 pt-2 border-t flex flex-col gap-1" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <button
               onClick={() => { setMobileOpen(false); onSettingsToggle(); }}
@@ -204,11 +256,37 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
               style={{ color: "hsl(var(--muted-foreground))" }}>
               <Settings className="w-4 h-4" /> Settings
             </button>
-            <button
-              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left"
-              style={{ color: "hsl(var(--muted-foreground))" }}>
-              <User className="w-4 h-4" /> Account <span className="ml-auto text-[10px] text-white/30">Coming Soon</span>
-            </button>
+
+            {/* Signed in: account link */}
+            <Show when="signed-in">
+              <Link href="/account" onClick={() => setMobileOpen(false)}>
+                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer"
+                  style={{ color: "hsl(var(--muted-foreground))" }}>
+                  <NavAvatar /> Account
+                </span>
+              </Link>
+              <button
+                onClick={() => { setMobileOpen(false); signOut({ redirectUrl: basePath || "/" }); }}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left text-red-400/80">
+                <LogIn className="w-4 h-4 rotate-180" /> Sign out
+              </button>
+            </Show>
+
+            {/* Signed out: sign-in link */}
+            <Show when="signed-out">
+              <Link href="/sign-in" onClick={() => setMobileOpen(false)}>
+                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
+                  style={{ color: "hsl(var(--primary))" }}>
+                  <LogIn className="w-4 h-4" /> Sign in
+                </span>
+              </Link>
+              <Link href="/sign-up" onClick={() => setMobileOpen(false)}>
+                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
+                  style={{ color: "hsl(var(--muted-foreground))" }}>
+                  <User className="w-4 h-4" /> Create account
+                </span>
+              </Link>
+            </Show>
           </div>
         </div>
       )}

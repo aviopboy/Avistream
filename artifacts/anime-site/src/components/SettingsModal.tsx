@@ -1,10 +1,127 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Palette, User, Check, Image, FolderOpen } from "lucide-react";
+import {
+  X, Palette, User, Check, Image, FolderOpen,
+  LogIn, ChevronRight, Shield, LogOut,
+} from "lucide-react";
+import { useUser, useClerk, Show } from "@clerk/react";
+import { Link } from "wouter";
 import { ACCENT_COLORS, BG_PRESETS, useThemeContext } from "@/hooks/use-theme";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type Tab = "appearance" | "account";
 
+// ── Small avatar for Settings panel ─────────────────────────────────────────
+function MiniAvatar() {
+  const { user } = useUser();
+  const initials = [user?.firstName, user?.lastName]
+    .filter(Boolean).map((n) => n![0]).join("").toUpperCase()
+    || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || "?";
+
+  if (user?.imageUrl) {
+    return <img src={user.imageUrl} alt="" className="w-12 h-12 rounded-full object-cover" />;
+  }
+  return (
+    <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold text-white"
+      style={{ background: "linear-gradient(135deg, #FF6B35 0%, #e55a25 100%)" }}>
+      {initials}
+    </div>
+  );
+}
+
+// ── Account tab content ───────────────────────────────────────────────────────
+function AccountTab({ onClose }: { onClose: () => void }) {
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+
+  return (
+    <div className="space-y-4">
+      {/* Signed-in state */}
+      <Show when="signed-in">
+        {/* Profile card */}
+        <Link href="/account" onClick={onClose}>
+          <div className="flex items-center gap-3.5 p-4 rounded-2xl cursor-pointer transition-all hover:bg-white/5"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            {isLoaded ? <MiniAvatar /> : (
+              <div className="w-12 h-12 rounded-full bg-white/10 animate-pulse" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white truncate">
+                {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Your Account"}
+              </p>
+              <p className="text-xs text-white/40 truncate mt-0.5">
+                {user?.primaryEmailAddress?.emailAddress}
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 flex-shrink-0 text-white/20" />
+          </div>
+        </Link>
+
+        {/* Quick links */}
+        <div className="rounded-xl overflow-hidden"
+          style={{ border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+          <Link href="/account" onClick={onClose}>
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5 border-b text-left"
+              style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+              <User className="w-4 h-4 text-white/40" />
+              <span className="text-white/70 font-medium">Personal info</span>
+              <ChevronRight className="w-3.5 h-3.5 text-white/20 ml-auto" />
+            </button>
+          </Link>
+          <Link href="/account" onClick={onClose}>
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5 text-left">
+              <Shield className="w-4 h-4 text-white/40" />
+              <span className="text-white/70 font-medium">Security</span>
+              <ChevronRight className="w-3.5 h-3.5 text-white/20 ml-auto" />
+            </button>
+          </Link>
+        </div>
+
+        {/* Sign out */}
+        <button
+          onClick={() => signOut({ redirectUrl: basePath || "/" })}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors hover:bg-red-500/10"
+          style={{ border: "1px solid rgba(239,68,68,0.15)", color: "rgba(239,68,68,0.8)" }}>
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
+      </Show>
+
+      {/* Signed-out state */}
+      <Show when="signed-out">
+        <div className="flex flex-col items-center text-center gap-5 py-6">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ background: "hsl(var(--primary) / 0.1)", border: "2px solid hsl(var(--primary) / 0.2)" }}>
+            <User className="w-7 h-7" style={{ color: "hsl(var(--primary))" }} />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white mb-1">Sign in to AviStream</h3>
+            <p className="text-sm text-white/40 leading-relaxed">
+              Track your watch history, sync bookmarks, and manage your account.
+            </p>
+          </div>
+          <div className="flex flex-col w-full gap-2">
+            <Link href="/sign-in" onClick={onClose}>
+              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ background: "hsl(var(--primary))", color: "#fff" }}>
+                <LogIn className="w-4 h-4" /> Sign in
+              </button>
+            </Link>
+            <Link href="/sign-up" onClick={onClose}>
+              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-white/5"
+                style={{ color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                Create account
+              </button>
+            </Link>
+          </div>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+// ── Main modal ────────────────────────────────────────────────────────────────
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("appearance");
   const { settings, setAccent, setBgPreset, setBgImage } = useThemeContext();
@@ -27,11 +144,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      if (dataUrl) {
-        setBgPreset("custom");
-        setBgImage(dataUrl);
-        setUrlInput("");
-      }
+      if (dataUrl) { setBgPreset("custom"); setBgImage(dataUrl); setUrlInput(""); }
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -40,10 +153,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-[9000] flex items-end sm:items-center justify-center sm:justify-end"
       onClick={onClose}>
-      {/* Backdrop */}
       <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} />
 
-      {/* Panel */}
       <div
         className="relative w-full sm:w-[360px] sm:h-full sm:max-h-full flex flex-col overflow-hidden rounded-t-2xl sm:rounded-none sm:rounded-l-2xl"
         style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.08)", zIndex: 1 }}
@@ -57,24 +168,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b"
           style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          {/* Back arrow — mobile only */}
           <button onClick={onClose}
             className="sm:hidden flex items-center gap-1.5 text-sm font-semibold transition-colors"
             style={{ color: "hsl(var(--primary))" }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
             </svg>
             Back
           </button>
-
           <span className="text-base font-bold text-white">Settings</span>
-
-          {/* X — desktop only */}
           <button onClick={onClose}
             className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center transition-colors hover:bg-white/10">
             <X className="w-4 h-4 text-white/50" />
           </button>
-          {/* Spacer on mobile so title stays centered */}
           <div className="sm:hidden w-14" />
         </div>
 
@@ -147,22 +254,16 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
                 {/* Custom image */}
                 <div className="mt-3 rounded-xl overflow-hidden"
-                  style={{ border: settings.bgPreset === "custom" ? "2px solid hsl(var(--primary))" : "2px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
+                  style={{
+                    border: settings.bgPreset === "custom" ? "2px solid hsl(var(--primary))" : "2px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.03)",
+                  }}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                     <Image className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
                     <span className="text-xs font-semibold text-white/70">Custom Background</span>
                   </div>
-
-                  {/* Choose from file */}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  <button
-                    onClick={() => fileRef.current?.click()}
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                  <button onClick={() => fileRef.current?.click()}
                     className="w-full flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-colors hover:bg-white/5 border-b"
                     style={{ color: "hsl(var(--primary))", borderColor: "rgba(255,255,255,0.07)" }}>
                     <FolderOpen className="w-3.5 h-3.5" />
@@ -171,24 +272,17 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                       <span className="text-white/40 font-normal">(image loaded)</span>
                     )}
                   </button>
-
-                  {/* URL input */}
                   <div className="flex gap-2 p-3">
-                    <input
-                      ref={urlRef}
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
+                    <input ref={urlRef} value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") applyCustomUrl(); }}
                       placeholder="Or paste image URL…"
-                      className="flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/20 min-w-0"
-                    />
+                      className="flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/20 min-w-0" />
                     <button onClick={applyCustomUrl}
                       className="text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
                       style={{ background: "hsl(var(--primary))", color: "#fff" }}>
                       Apply
                     </button>
                   </div>
-
                   {settings.bgPreset === "custom" && settings.bgImage && (
                     <button onClick={() => { setBgPreset("dark"); setBgImage(""); setUrlInput(""); }}
                       className="w-full py-2 text-xs text-white/30 hover:text-white transition-colors border-t text-center"
@@ -201,22 +295,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </>
           )}
 
-          {tab === "account" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ background: "hsl(var(--primary) / 0.12)", border: "2px solid hsl(var(--primary) / 0.2)" }}>
-                <User className="w-8 h-8" style={{ color: "hsl(var(--primary))" }} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white mb-1">Account</h3>
-                <p className="text-sm text-white/40">Coming Soon</p>
-              </div>
-              <div className="px-4 py-2 rounded-full text-xs font-semibold"
-                style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary) / 0.2)" }}>
-                🚧 Under Construction
-              </div>
-            </div>
-          )}
+          {tab === "account" && <AccountTab onClose={onClose} />}
         </div>
       </div>
     </div>,

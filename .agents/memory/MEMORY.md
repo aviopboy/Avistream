@@ -1,0 +1,2 @@
+- [Clerk Auth Setup](clerk-auth-setup.md) — Replit-managed Clerk provisioned; key wiring, proxy, and Tailwind v4 layer order details.
+- [AviStream Watch Progress](watch-progress.md) — localStorage-based tracker; wall-clock elapsed time, WATCHED_THRESHOLD=0.85, seriesInfo dep in tracker effect.
