@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRoute, Link, useLocation } from "wouter";
+import { useUser } from "@clerk/react";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Loader2,
   AlertCircle, Play, Tv, Captions, Bookmark, Trash2, Plus, X, Clock, Pencil, Check,
@@ -426,6 +427,9 @@ export default function Watch() {
   const [, params] = useRoute("/watch/:episodeId");
   const baseEpisodeId = params?.episodeId ?? "";
 
+  // Auth guard — must be registered + onboarded to watch
+  const { user, isLoaded: authLoaded } = useUser();
+
   const slugMatch = baseEpisodeId.match(/^(.*?)-(\d+)x(\d+)$/);
   const isMovie = !slugMatch;
   const seriesSlug = isMovie ? baseEpisodeId : (slugMatch?.[1] ?? "");
@@ -458,6 +462,22 @@ export default function Watch() {
 
   useEffect(() => { try { localStorage.setItem(LANG_KEY, audioLang); } catch { /**/ } }, [audioLang]);
   useEffect(() => { try { localStorage.setItem(SUB_KEY, String(subEnabled)); } catch { /**/ } }, [subEnabled]);
+
+  // Auth guard — redirect if not signed in or not yet onboarded
+  useEffect(() => {
+    if (!authLoaded) return;
+    // Store base-relative path so onboarding can pass it to wouter's setLocation
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const fullPath = window.location.pathname + window.location.search;
+    const dest = base && fullPath.startsWith(base) ? fullPath.slice(base.length) || "/" : fullPath;
+    if (!user) {
+      sessionStorage.setItem("avistream_next", dest);
+      setLocation("/sign-in");
+    } else if (!user.unsafeMetadata?.onboardingComplete) {
+      sessionStorage.setItem("avistream_next", dest);
+      setLocation("/onboarding");
+    }
+  }, [authLoaded, user, setLocation]);
 
   // Close bookmark panel on outside click
   useEffect(() => {

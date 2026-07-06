@@ -15,6 +15,7 @@ import Series from "@/pages/series";
 import Watch from "@/pages/watch";
 import Genre from "@/pages/genre";
 import Account from "@/pages/account";
+import Onboarding from "@/pages/onboarding";
 import { useTheme, ThemeContext, applyTheme } from "@/hooks/use-theme";
 
 const queryClient = new QueryClient();
@@ -137,7 +138,12 @@ function SignUpPage() {
       style={{ background: "linear-gradient(135deg, #060608 0%, #0f0f14 50%, #060608 100%)" }}>
       <div className="absolute inset-0 pointer-events-none"
         style={{ backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,107,53,0.06) 0%, transparent 70%)" }} />
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        fallbackRedirectUrl={`${basePath}/onboarding`}
+      />
     </div>
   );
 }
@@ -145,7 +151,7 @@ function SignUpPage() {
 function Layout() {
   const [location] = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const isAuthPage = location.startsWith("/sign-in") || location.startsWith("/sign-up");
+  const isAuthPage = location.startsWith("/sign-in") || location.startsWith("/sign-up") || location.startsWith("/onboarding");
   const watchPage = location.startsWith("/watch/");
 
   return (
@@ -168,6 +174,7 @@ function Layout() {
           <Route path="/genre/:name" component={Genre} />
           <Route path="/genre" component={Genre} />
           <Route path="/account" component={Account} />
+          <Route path="/onboarding" component={Onboarding} />
           {/* REQUIRED — /*? matches bare URL + Clerk OAuth sub-paths */}
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
