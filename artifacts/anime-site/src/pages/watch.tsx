@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRoute, Link, useLocation } from "wouter";
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Loader2,
   AlertCircle, Play, Tv, Captions, Bookmark, Trash2, Plus, X, Clock, Pencil, Check,
+  CheckCircle2, SkipForward, Link2,
 } from "lucide-react";
 import {
   useGetAnimeEpisode, getGetAnimeEpisodeQueryKey,
@@ -15,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { addRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import type { Bookmark as BookmarkType } from "@/hooks/use-bookmarks";
+import {
+  saveProgress, getProgress, markWatched,
+  DEFAULT_DURATION, WATCHED_THRESHOLD, isWatched, getProgressPct,
+} from "@/hooks/use-watch-progress";
 
 type AudioLang = "japanese" | "english" | "hindi" | "tamil" | "malayalam";
 const LANG_KEY = "avistream_audio";
@@ -40,6 +45,28 @@ function parseTimestamp(s: string): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+function formatSeconds(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Parse "14m32s", "14:32", or "872" (raw seconds) into "14:32" */
+function parseShareTimestamp(t: string): string {
+  const mMatch = t.match(/^(\d+)m(\d+)s$/);
+  if (mMatch) return `${mMatch[1]}:${(mMatch[2] ?? "0").padStart(2, "0")}`;
+  const colonMatch = t.match(/^(\d+):(\d+)$/);
+  if (colonMatch) return `${colonMatch[1]}:${(colonMatch[2] ?? "0").padStart(2, "0")}`;
+  const secsMatch = t.match(/^(\d+)$/);
+  if (secsMatch) return formatSeconds(parseInt(secsMatch[1] ?? "0"));
+  return t;
+}
+
+/** "14:32" → "14m32s" for URL encoding */
+function toShareParam(ts: string): string {
+  return ts.replace(":", "m") + "s";
+}
+
 /* ─── Bookmark Panel ─── */
 function BookmarkPanel({
   episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum,
@@ -56,6 +83,7 @@ function BookmarkPanel({
 
   const [adding, setAdding] = useState(false);
   const [tsInput, setTsInput] = useState("0:00");
+  const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,6 +95,15 @@ function BookmarkPanel({
     addBookmark({ episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum, timestamp: ts });
     setAdding(false);
     setTsInput("0:00");
+  };
+
+  const copyShareLink = (ts: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", toShareParam(ts));
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {/* ignore */});
   };
 
   const top = anchorRect ? anchorRect.bottom + 8 : 64;
@@ -144,23 +181,25 @@ function BookmarkPanel({
               <BookmarkRow key={b.id} bookmark={b}
                 onPlay={() => onPlay(b.timestamp)}
                 onDelete={() => removeBookmark(b.id)}
-                onEdit={(ts) => updateBookmark(b.id, ts)} />
+                onEdit={(ts) => updateBookmark(b.id, ts)}
+                onShare={() => copyShareLink(b.timestamp)} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Episode label */}
-      <div className="px-4 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      {/* Share hint or episode label */}
+      <div className="px-4 py-2 border-t flex items-center justify-between gap-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <p className="text-[10px] text-white/25 truncate">{episodeTitle}</p>
+        {copied && <span className="text-[10px] text-green-400 flex-shrink-0">Link copied!</span>}
       </div>
     </div>,
     document.body
   );
 }
 
-function BookmarkRow({ bookmark, onPlay, onDelete, onEdit }: {
-  bookmark: BookmarkType; onPlay: () => void; onDelete: () => void; onEdit: (ts: string) => void;
+function BookmarkRow({ bookmark, onPlay, onDelete, onEdit, onShare }: {
+  bookmark: BookmarkType; onPlay: () => void; onDelete: () => void; onEdit: (ts: string) => void; onShare: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [tsInput, setTsInput] = useState(bookmark.timestamp);
@@ -218,6 +257,14 @@ function BookmarkRow({ bookmark, onPlay, onDelete, onEdit }: {
         style={{ background: "hsl(var(--primary))" }}
         title="Play from this timestamp">
         <Play className="w-3 h-3 fill-white text-white ml-0.5" />
+      </button>
+      <button onClick={onShare}
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:bg-white/10"
+        style={{ opacity: 0.45 }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.45")}
+        title="Copy shareable link to this timestamp">
+        <Link2 className="w-3 h-3 text-white" />
       </button>
       <button onClick={() => { setTsInput(bookmark.timestamp); setEditing(true); }}
         className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:bg-white/10"
@@ -284,9 +331,12 @@ function RecCard({ anime }: { anime: AnimeCard }) {
 
 /* ─── Episode Item ─── */
 function EpisodeItem({ ep, isActive, onClick }: { ep: FlatEpisode; isActive: boolean; onClick: () => void }) {
+  const watched = isWatched(ep.id);
+  const pct = getProgressPct(ep.id);
+
   return (
     <button onClick={onClick}
-      className={`group w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+      className={`group w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left relative overflow-hidden ${
         isActive ? "border-primary/40 text-white" : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-primary/20 text-white/70 hover:text-white"
       }`}
       style={isActive ? { background: "hsl(var(--primary) / 0.2)" } : {}}>
@@ -294,18 +344,79 @@ function EpisodeItem({ ep, isActive, onClick }: { ep: FlatEpisode; isActive: boo
         <div className="w-16 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-white/5 relative">
           <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
           {isActive && <div className="absolute inset-0 bg-primary/30 flex items-center justify-center"><Play className="w-3 h-3 fill-white text-white" /></div>}
+          {watched && !isActive && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+            </div>
+          )}
         </div>
       ) : (
         <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? "text-white" : "bg-white/10 text-white/40 group-hover:text-primary"}`}
           style={isActive ? { background: "hsl(var(--primary))" } : {}}>
-          <Play className="w-3 h-3 ml-0.5 fill-current" />
+          {watched ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Play className="w-3 h-3 ml-0.5 fill-current" />}
         </div>
       )}
       <div className="flex-1 min-w-0">
         <div className="text-xs text-muted-foreground mb-0.5">Ep {ep.number}</div>
         <div className="text-sm font-medium truncate">{ep.title ?? `Episode ${ep.number}`}</div>
       </div>
+      {/* Progress bar at bottom of card */}
+      {pct > 0.02 && !watched && (
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
+          <div className="h-full transition-all" style={{ width: `${pct * 100}%`, background: "hsl(var(--primary))" }} />
+        </div>
+      )}
     </button>
+  );
+}
+
+/* ─── Next Episode Overlay ─── */
+function NextEpisodeOverlay({
+  nextId, nextTitle, countdown,
+  onSkip, onCancel,
+}: {
+  nextId: string; nextTitle: string; countdown: number;
+  onSkip: () => void; onCancel: () => void;
+}) {
+  const circumference = 2 * Math.PI * 18;
+  const offset = circumference * (1 - countdown / 5);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-end p-6 pointer-events-none">
+      <div className="pointer-events-auto flex items-center gap-4 px-5 py-4 rounded-2xl shadow-2xl"
+        style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.12)" }}>
+        {/* Countdown ring */}
+        <div className="relative w-10 h-10 flex-shrink-0">
+          <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+            <circle cx="20" cy="20" r="18" fill="none"
+              stroke="hsl(var(--primary))" strokeWidth="3"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              style={{ transition: "stroke-dashoffset 1s linear" }} />
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white">{countdown}</span>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-white/40 mb-0.5">Up Next</p>
+          <p className="text-sm font-semibold text-white truncate max-w-[180px]">{nextTitle}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={onCancel}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold text-white/50 hover:text-white hover:bg-white/10 transition-all">
+            Cancel
+          </button>
+          <button onClick={onSkip}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:scale-105"
+            style={{ background: "hsl(var(--primary))" }}>
+            <SkipForward className="w-3.5 h-3.5" /> Play now
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -332,10 +443,23 @@ export default function Watch() {
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const bookmarkBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Auto-resume state
+  const [resumeFrom, setResumeFrom] = useState<string | null>(null);
+
+  // Next episode countdown
+  const [nextEpCountdown, setNextEpCountdown] = useState<number | null>(null);
+
+  const [seekHint, setSeekHint] = useState<string | null>(null);
+
+  // Progress tracking refs (wall-clock elapsed time)
+  const positionRef = useRef(0);
+  const lastSavePositionRef = useRef(0);
+  const playerStartedRef = useRef(false);
+
   useEffect(() => { try { localStorage.setItem(LANG_KEY, audioLang); } catch { /**/ } }, [audioLang]);
   useEffect(() => { try { localStorage.setItem(SUB_KEY, String(subEnabled)); } catch { /**/ } }, [subEnabled]);
 
-  // Close bookmark panel on outside click (panel is in a portal, so we check id)
+  // Close bookmark panel on outside click
   useEffect(() => {
     if (!bookmarkOpen) return;
     const handler = (e: MouseEvent) => {
@@ -347,6 +471,20 @@ export default function Watch() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [bookmarkOpen]);
+
+  // Parse ?t= shareable timestamp from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("t");
+    if (t) setSeekHint(parseShareTimestamp(t));
+  }, [baseEpisodeId]);
+
+  // Auto-dismiss seek hint after 6s
+  useEffect(() => {
+    if (!seekHint) return;
+    const timer = setTimeout(() => setSeekHint(null), 6000);
+    return () => clearTimeout(timer);
+  }, [seekHint]);
 
   const openBookmarks = () => {
     setAnchorRect(bookmarkBtnRef.current?.getBoundingClientRect() ?? null);
@@ -386,26 +524,127 @@ export default function Watch() {
   const seasonEpisodes: FlatEpisode[] = (seriesInfo?.episodes ?? []).filter((ep) => ep.season === currentSeason);
   const recommendations = (recData?.results ?? []).filter((r) => r.slug !== seriesSlug).slice(0, 12);
 
+  // Add to recent watched
   useEffect(() => {
     if (seriesInfo && seriesSlug) {
       addRecentWatched({ slug: seriesSlug, title: seriesInfo.title, image: seriesInfo.thumbnail ?? null });
     }
   }, [seriesInfo, seriesSlug]);
 
-  const [seekHint, setSeekHint] = useState<string | null>(null);
-
+  // Auto-resume: check saved progress on episode load
   useEffect(() => {
-    if (!seekHint) return;
-    const t = setTimeout(() => setSeekHint(null), 6000);
-    return () => clearTimeout(t);
-  }, [seekHint]);
+    if (!baseEpisodeId || isMovie) return;
+    setResumeFrom(null); // reset on episode change
+    const prog = getProgress(baseEpisodeId);
+    if (prog && prog.position > 30 && prog.position / prog.duration < WATCHED_THRESHOLD) {
+      setResumeFrom(formatSeconds(prog.position));
+    }
+  }, [baseEpisodeId, isMovie]);
 
-  const goToEpisode = (id: string) => setLocation(`/watch/${id}`);
+  // Track elapsed watch time and save progress every 10s
+  useEffect(() => {
+    if (!playerUrl || !baseEpisodeId || !seriesInfo || isMovie) return;
+
+    const existing = getProgress(baseEpisodeId);
+    positionRef.current = existing?.position ?? 0;
+    lastSavePositionRef.current = positionRef.current;
+    playerStartedRef.current = true;
+
+    // Capture metadata values at effect-start time so the closure is stable
+    const title = seriesInfo.title;
+    const image = seriesInfo.thumbnail ?? null;
+
+    let lastTick = Date.now();
+
+    const doSave = () => {
+      saveProgress({
+        episodeId: baseEpisodeId,
+        seriesSlug,
+        seriesTitle: title,
+        seriesImage: image,
+        season: currentSeason,
+        episodeNum,
+        episodeTitle,
+        position: positionRef.current,
+        duration: DEFAULT_DURATION,
+      });
+      lastSavePositionRef.current = positionRef.current;
+    };
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (!document.hidden) {
+        positionRef.current += (now - lastTick) / 1000;
+      }
+      lastTick = now;
+      // Save every ~10 seconds of accumulated elapsed time
+      if (positionRef.current - lastSavePositionRef.current >= 10) {
+        doSave();
+      }
+    }, 1000);
+
+    const handleVisibility = () => { lastTick = Date.now(); };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      // Final save on unmount
+      if (playerStartedRef.current) doSave();
+    };
+  // Include seriesInfo so the effect re-fires if series data arrives after the player URL
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerUrl, baseEpisodeId, seriesInfo]);
+
+  // Next episode countdown tick
+  useEffect(() => {
+    if (nextEpCountdown === null) return;
+    if (nextEpCountdown <= 0) {
+      if (episode?.next_episode_id) goToEpisode(episode.next_episode_id);
+      setNextEpCountdown(null);
+      return;
+    }
+    const t = setTimeout(() => setNextEpCountdown((n) => (n ?? 1) - 1), 1000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextEpCountdown]);
+
+  const goToEpisode = useCallback((id: string) => {
+    setNextEpCountdown(null);
+    setLocation(`/watch/${id}`);
+  }, [setLocation]);
 
   const handleBookmarkPlay = (timestamp: string) => {
     setBookmarkOpen(false);
     setSeekHint(timestamp);
+    // Update URL so it's shareable at this timestamp
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", toShareParam(timestamp));
+    window.history.replaceState(null, "", url.toString());
   };
+
+  const handleMarkDone = () => {
+    markWatched(baseEpisodeId, {
+      episodeId: baseEpisodeId,
+      seriesSlug,
+      seriesTitle: seriesInfo?.title ?? "",
+      seriesImage: seriesInfo?.thumbnail ?? null,
+      season: currentSeason,
+      episodeNum,
+      episodeTitle,
+      duration: DEFAULT_DURATION,
+    });
+    if (episode?.next_episode_id) {
+      setNextEpCountdown(5);
+    }
+  };
+
+  const nextEp = episode?.next_episode_id
+    ? seasonEpisodes.find((e) => e.id === episode.next_episode_id)
+    : null;
+  const nextEpTitle = nextEp
+    ? (nextEp.title ?? `Episode ${nextEp.number}`)
+    : `Episode ${parseInt(episodeNum) + 1}`;
 
   return (
     <div className="min-h-screen bg-black text-foreground flex flex-col relative overflow-hidden">
@@ -474,6 +713,27 @@ export default function Watch() {
       </header>
 
       <main className="relative z-10 flex-1 w-full max-w-5xl mx-auto px-4 md:px-6 pb-16 flex flex-col gap-0">
+
+        {/* Auto-resume banner */}
+        {resumeFrom && !seekHint && (
+          <div className="w-full mb-3 flex items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: "hsl(var(--primary) / 0.1)", border: "1px solid hsl(var(--primary) / 0.25)" }}>
+            <Clock className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
+            <p className="text-sm text-white flex-1">
+              Continue from <span className="font-mono font-bold" style={{ color: "hsl(var(--primary))" }}>{resumeFrom}</span>?
+            </p>
+            <button
+              onClick={() => { setSeekHint(resumeFrom); setResumeFrom(null); }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-all hover:scale-105"
+              style={{ background: "hsl(var(--primary))", color: "#fff" }}>
+              Resume
+            </button>
+            <button onClick={() => setResumeFrom(null)} className="text-white/30 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Player */}
         <div className="w-full">
           {isLoading ? (
@@ -521,7 +781,7 @@ export default function Watch() {
           </div>
         )}
 
-        {/* Prev / Next (episodes only) */}
+        {/* Prev / Next / Mark Done (episodes only) */}
         {!isMovie && (
           <div className="w-full mt-4 flex items-center justify-between gap-3 px-1">
             <Button variant="ghost" className="gap-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
@@ -530,6 +790,20 @@ export default function Watch() {
               <ChevronLeft className="w-4 h-4" />
               <span className="hidden sm:inline text-sm">Previous</span>
             </Button>
+
+            {/* Mark as Done */}
+            {playerUrl && (
+              <button
+                onClick={handleMarkDone}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border hover:scale-105"
+                style={isWatched(baseEpisodeId)
+                  ? { background: "rgba(74,222,128,0.12)", borderColor: "rgba(74,222,128,0.3)", color: "rgb(74,222,128)" }
+                  : { background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isWatched(baseEpisodeId) ? "Watched" : "Mark done"}</span>
+              </button>
+            )}
+
             <Button variant="ghost" className="gap-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full disabled:opacity-20"
               disabled={!episode?.next_episode_id || epLoading}
               onClick={() => episode?.next_episode_id && goToEpisode(episode.next_episode_id)}>
@@ -566,6 +840,17 @@ export default function Watch() {
           </div>
         )}
       </main>
+
+      {/* Next Episode Overlay */}
+      {nextEpCountdown !== null && episode?.next_episode_id && (
+        <NextEpisodeOverlay
+          nextId={episode.next_episode_id}
+          nextTitle={nextEpTitle}
+          countdown={nextEpCountdown}
+          onSkip={() => goToEpisode(episode.next_episode_id!)}
+          onCancel={() => setNextEpCountdown(null)}
+        />
+      )}
     </div>
   );
 }

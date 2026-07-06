@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from "react";
 import { useRoute, Link } from "wouter";
-import { Play, ListVideo, Film, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, ListVideo, Film, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useGetAnimeSeries, getGetAnimeSeriesQueryKey } from "@workspace/api-client-react";
 import type { FlatEpisode } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isWatched, getProgressPct } from "@/hooks/use-watch-progress";
 
 type GroupedSeason = { number: string; episodes: FlatEpisode[] };
 
@@ -212,10 +213,12 @@ export default function Series() {
               </span>
             )}
             {series.genres?.map((g) => (
-              <span key={g} className="px-2 py-0.5 rounded text-xs"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(var(--muted-foreground))" }}>
-                {g}
-              </span>
+              <Link key={g} href={`/genre/${encodeURIComponent(g)}`}>
+                <span className="px-2 py-0.5 rounded text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "hsl(var(--muted-foreground))" }}>
+                  {g}
+                </span>
+              </Link>
             ))}
           </div>
 
@@ -271,31 +274,48 @@ export default function Series() {
 
               {/* Episode grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                {pageEps.map((ep) => (
-                  <Link key={ep.id} href={`/watch/${ep.id}`}>
-                    <div className="group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all"
-                      style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "hsl(var(--primary) / 0.4)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "hsl(var(--border))"; }}>
-                      {ep.thumbnail ? (
-                        <div className="w-16 h-10 rounded-md overflow-hidden flex-shrink-0 bg-black/20">
-                          <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+                {pageEps.map((ep) => {
+                  const watched = isWatched(ep.id);
+                  const pct = getProgressPct(ep.id);
+                  return (
+                    <Link key={ep.id} href={`/watch/${ep.id}`}>
+                      <div className="group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all relative overflow-hidden"
+                        style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "hsl(var(--primary) / 0.4)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "hsl(var(--border))"; }}>
+                        {ep.thumbnail ? (
+                          <div className="w-16 h-10 rounded-md overflow-hidden flex-shrink-0 bg-black/20 relative">
+                            <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+                            {watched && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <CheckCircle2 className="w-4 h-4 text-green-400" />
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: "rgba(255,107,53,0.1)", color: "hsl(var(--primary))" }}>
+                            {watched
+                              ? <CheckCircle2 className="w-4 h-4 text-green-400" />
+                              : <Play className="w-3.5 h-3.5 ml-0.5 fill-current" />}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-muted-foreground mb-0.5">Ep {ep.number}</div>
+                          <div className="text-sm font-medium text-white/80 truncate">
+                            {ep.title ?? `Episode ${ep.number}`}
+                          </div>
                         </div>
-                      ) : (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ background: "rgba(255,107,53,0.1)", color: "hsl(var(--primary))" }}>
-                          <Play className="w-3.5 h-3.5 ml-0.5 fill-current" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11px] text-muted-foreground mb-0.5">Ep {ep.number}</div>
-                        <div className="text-sm font-medium text-white/80 truncate">
-                          {ep.title ?? `Episode ${ep.number}`}
-                        </div>
+                        {/* Progress bar */}
+                        {pct > 0.02 && !watched && (
+                          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
+                            <div className="h-full" style={{ width: `${pct * 100}%`, background: "hsl(var(--primary))" }} />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
 
               {/* Episode pagination if many eps */}

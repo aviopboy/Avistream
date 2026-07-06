@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Play, Flame, Tv, Sparkles, Film, Clock,
-  Bookmark, Search, X, Info, ChevronLeft, ChevronRight,
+  Bookmark, Search, X, Info, ChevronLeft, ChevronRight, PlayCircle,
 } from "lucide-react";
 import {
   useGetAnimeHome, useSearchAnime, getSearchAnimeQueryKey,
@@ -12,10 +12,10 @@ import type { AnimeCard } from "@workspace/api-client-react";
 import { useRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useWatchProgress } from "@/hooks/use-watch-progress";
 
 /* ─────────────────────────────────────────
-   Featured anime config (descriptions/genres are static;
-   image + slug come from the live API search)
+   Featured anime config
 ───────────────────────────────────────── */
 const FEATURED = [
   {
@@ -112,7 +112,6 @@ function HeroCarousel() {
     <div className="relative w-full rounded-2xl overflow-hidden select-none"
       style={{ height: "clamp(280px, 45vw, 500px)" }}>
 
-      {/* Background image */}
       <div className="absolute inset-0 transition-opacity duration-300"
         style={{ opacity: fading ? 0 : 1 }}>
         {slide.image && (
@@ -122,39 +121,35 @@ function HeroCarousel() {
         )}
       </div>
 
-      {/* Gradients */}
       <div className="absolute inset-0"
         style={{ background: "linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)" }} />
       <div className="absolute inset-0"
         style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)" }} />
 
-      {/* Content */}
       <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-8 md:pb-10"
         style={{ transition: "opacity 0.3s", opacity: fading ? 0 : 1 }}>
 
-        {/* Genre pills */}
         <div className="flex gap-2 flex-wrap mb-3">
           {slide.genres.map((g) => (
-            <span key={g}
-              className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white/80"
-              style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}>
-              {g}
-            </span>
+            <Link key={g} href={`/genre/${encodeURIComponent(g)}`}>
+              <span
+                className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white/80 cursor-pointer hover:bg-white/20 transition-colors"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                {g}
+              </span>
+            </Link>
           ))}
         </div>
 
-        {/* Title */}
         <h2 className="text-2xl md:text-4xl font-extrabold text-white leading-tight mb-2 drop-shadow-lg"
           style={{ textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>
           {slide.title}
         </h2>
 
-        {/* Description */}
         <p className="text-sm md:text-base text-white/70 leading-relaxed max-w-xl mb-5 line-clamp-2 md:line-clamp-3">
           {slide.description}
         </p>
 
-        {/* Buttons */}
         <div className="flex gap-3 flex-wrap">
           <Link href={`/series/${slide.slug}`}>
             <button className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
@@ -173,7 +168,6 @@ function HeroCarousel() {
         </div>
       </div>
 
-      {/* Prev / Next arrows */}
       <button onClick={prev}
         className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-white/20 hidden sm:flex"
         style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.15)" }}>
@@ -185,7 +179,6 @@ function HeroCarousel() {
         <ChevronRight className="w-5 h-5 text-white" />
       </button>
 
-      {/* Dots */}
       <div className="absolute bottom-3 right-4 flex gap-1.5 items-center">
         {ready.map((_, i) => (
           <button key={i} onClick={() => go(i)}
@@ -202,7 +195,7 @@ function HeroCarousel() {
 }
 
 /* ─────────────────────────────────────────
-   Reusable card / section components
+   Card / Section components
 ───────────────────────────────────────── */
 function Card({ anime }: { anime: AnimeCard }) {
   return (
@@ -251,7 +244,6 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
-/* Hook: converts vertical mouse-wheel to horizontal scroll on desktop */
 function useHorizScroll() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -260,8 +252,13 @@ function useHorizScroll() {
     const handler = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       if (e.deltaY === 0) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaY * 2;
+      if (el.scrollWidth <= el.clientWidth) return;
+      const atStart = el.scrollLeft === 0 && e.deltaY < 0;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaY > 0;
+      if (!atStart && !atEnd) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY * 2;
+      }
     };
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
@@ -327,6 +324,49 @@ function BookmarkCard({ title, image, episodeId, episodeTitle }: {
   );
 }
 
+/* ─── Continue Watching Card ─── */
+function ContinueWatchingCard({ entry }: { entry: ReturnType<typeof useWatchProgress>["inProgress"][number] }) {
+  const pct = Math.min(1, entry.position / entry.duration);
+  const minsLeft = Math.max(0, Math.round((entry.duration - entry.position) / 60));
+
+  return (
+    <Link href={`/watch/${entry.episodeId}`}>
+      <div className="group flex-shrink-0 w-[200px] rounded-xl overflow-hidden cursor-pointer transition-transform hover:-translate-y-1"
+        style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}>
+        {/* Thumbnail */}
+        <div className="w-full aspect-[16/9] overflow-hidden relative bg-black/40">
+          {entry.seriesImage
+            ? <img src={entry.seriesImage} alt={entry.seriesTitle}
+                className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" loading="lazy" />
+            : <div className="w-full h-full flex items-center justify-center"><Tv className="w-6 h-6 text-white/20" /></div>}
+          {/* Play overlay */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ background: "hsl(var(--primary))" }}>
+              <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+            </div>
+          </div>
+          {/* Time left badge */}
+          {minsLeft > 0 && (
+            <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+              style={{ background: "rgba(0,0,0,0.75)", color: "rgba(255,255,255,0.8)" }}>
+              {minsLeft}m left
+            </div>
+          )}
+          {/* Progress bar */}
+          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10">
+            <div className="h-full transition-all" style={{ width: `${pct * 100}%`, background: "hsl(var(--primary))" }} />
+          </div>
+        </div>
+        <div className="p-2.5 space-y-0.5">
+          <p className="text-xs font-semibold text-white/90 truncate">{entry.seriesTitle}</p>
+          <p className="text-[10px] text-muted-foreground truncate">S{entry.season} E{entry.episodeNum}</p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 /* ─────────────────────────────────────────
    Main Home Page
 ───────────────────────────────────────── */
@@ -334,6 +374,7 @@ export default function Home() {
   const { data: homeData, isLoading } = useGetAnimeHome();
   const { items: recentItems, refresh } = useRecentWatched();
   const { items: bookmarkItems } = useBookmarks();
+  const { inProgress, refresh: refreshProgress } = useWatchProgress();
 
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
@@ -345,7 +386,10 @@ export default function Home() {
     { query: { enabled: isSearching, queryKey: getSearchAnimeQueryKey({ q: debouncedQ }) } }
   );
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    refreshProgress();
+  }, [refresh, refreshProgress]);
 
   const freshDrops = homeData?.data?.fresh_drops ?? [];
   const onAir = homeData?.data?.on_air ?? [];
@@ -392,7 +436,6 @@ export default function Home() {
         </div>
 
         {isSearching ? (
-          /* ── Search results ── */
           <section>
             <SectionHeader title={`Results for "${debouncedQ}"`} icon={<Search className="w-4 h-4" />} />
             {searchLoading
@@ -405,6 +448,18 @@ export default function Home() {
           <>
             {/* ── Hero carousel ── */}
             <HeroCarousel />
+
+            {/* ── Continue Watching ── */}
+            {inProgress.length > 0 && (
+              <section>
+                <SectionHeader title="Continue Watching" icon={<PlayCircle className="w-4 h-4" />} />
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                  {inProgress.map((entry) => (
+                    <ContinueWatchingCard key={entry.episodeId} entry={entry} />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* ── Bookmarks ── */}
             {bookmarkItems.length > 0 && (

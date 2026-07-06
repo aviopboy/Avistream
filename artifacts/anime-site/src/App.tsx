@@ -10,6 +10,7 @@ import Anime from "@/pages/anime";
 import Movies from "@/pages/movies";
 import Series from "@/pages/series";
 import Watch from "@/pages/watch";
+import Genre from "@/pages/genre";
 import { useTheme, ThemeContext, applyTheme } from "@/hooks/use-theme";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,8 @@ function Layout() {
           <Route path="/movies" component={Movies} />
           <Route path="/series/:slug" component={Series} />
           <Route path="/watch/:episodeId" component={Watch} />
+          <Route path="/genre/:name" component={Genre} />
+          <Route path="/genre" component={Genre} />
           <Route component={NotFound} />
         </Switch>
       </div>
