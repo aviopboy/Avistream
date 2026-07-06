@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRoute, Link } from "wouter";
 import { Play, ListVideo, Film, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGetAnimeSeries, getGetAnimeSeriesQueryKey } from "@workspace/api-client-react";
@@ -28,32 +28,82 @@ function SeasonPicker({
   active: string;
   onChange: (s: string) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = useCallback((dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
+  }, []);
+
+  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Only translate vertical wheel to horizontal when there's actually room to scroll
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+      const atStart = el.scrollLeft === 0 && e.deltaY < 0;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1 && e.deltaY > 0;
+      if (!atStart && !atEnd) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    }
+  }, []);
+
   if (seasons.length <= 1) return null;
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-      {seasons.map((s) => {
-        const isActive = s.number === active;
-        return (
-          <button
-            key={s.number}
-            onClick={() => onChange(s.number)}
-            className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
-            style={
-              isActive
-                ? { background: "hsl(var(--primary))", color: "#fff" }
-                : {
-                    background: "hsl(var(--secondary))",
-                    color: "hsl(var(--muted-foreground))",
-                    border: "1px solid hsl(var(--border))",
-                  }
-            }
-          >
-            S{s.number}
-            <span className="ml-1 opacity-60">({s.episodes.length})</span>
-          </button>
-        );
-      })}
+    <div className="relative flex items-center gap-1">
+      {seasons.length > 6 && (
+        <button
+          onClick={() => scroll("left")}
+          className="flex-shrink-0 p-1 rounded-full transition-opacity hover:opacity-100 opacity-60"
+          style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
+          aria-label="Scroll seasons left"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      )}
+      <div
+        ref={scrollRef}
+        onWheel={onWheel}
+        className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-1"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {seasons.map((s) => {
+          const isActive = s.number === active;
+          return (
+            <button
+              key={s.number}
+              onClick={() => onChange(s.number)}
+              aria-pressed={isActive}
+              className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
+              style={
+                isActive
+                  ? { background: "hsl(var(--primary))", color: "#fff" }
+                  : {
+                      background: "hsl(var(--secondary))",
+                      color: "hsl(var(--muted-foreground))",
+                      border: "1px solid hsl(var(--border))",
+                    }
+              }
+            >
+              S{s.number}
+              <span className="ml-1 opacity-60">({s.episodes.length})</span>
+            </button>
+          );
+        })}
+      </div>
+      {seasons.length > 6 && (
+        <button
+          onClick={() => scroll("right")}
+          className="flex-shrink-0 p-1 rounded-full transition-opacity hover:opacity-100 opacity-60"
+          style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}
+          aria-label="Scroll seasons right"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
