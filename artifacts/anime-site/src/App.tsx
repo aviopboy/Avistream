@@ -196,8 +196,18 @@ function ClerkProviderWithRoutes() {
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{
-        signIn: { start: { title: "Welcome back", subtitle: "Sign in to your AviStream account" } },
-        signUp: { start: { title: "Join AviStream", subtitle: "Create your free account to get started" } },
+        signIn: {
+          start: { title: "Welcome back", subtitle: "Sign in to your AviStream account" },
+          emailCode: {
+            subtitle: "Enter the code sent to your email address. Can't find it? Check your spam or junk folder.",
+          },
+        },
+        signUp: {
+          start: { title: "Join AviStream", subtitle: "Create your free account to get started" },
+          emailCode: {
+            formSubtitle: "Enter the verification code sent to your email address. Can't find it? Check your spam or junk folder.",
+          },
+        },
       }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
