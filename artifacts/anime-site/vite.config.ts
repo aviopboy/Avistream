@@ -4,27 +4,16 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
+// PORT is only needed for the dev server; default to 3000 when absent (e.g. Netlify builds).
+const rawPort = process.env.PORT ?? "3000";
 const port = Number(rawPort);
-
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+// BASE_PATH defaults to "/" for standard deployments (Netlify, Vercel, etc.).
+// Replit sets it to a sub-path like "/anime-site" via the artifact system.
+const basePath = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base: basePath,

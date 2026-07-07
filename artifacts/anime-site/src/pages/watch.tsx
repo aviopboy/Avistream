@@ -514,15 +514,18 @@ export default function Watch() {
   const isDub = audioLang !== "japanese";
   const episodeId = isDub ? `${baseEpisodeId}--dub` : baseEpisodeId;
 
+  // Only fetch once auth is confirmed — prevents leaking episode data to unauthed users
+  const isAuthorized = authLoaded && !!user && !!user.unsafeMetadata?.onboardingComplete;
+
   const { data: episodeResponse, isLoading: epLoading, isError: epError } = useGetAnimeEpisode(episodeId, {
-    query: { enabled: !isMovie && !!episodeId, queryKey: getGetAnimeEpisodeQueryKey(episodeId) },
+    query: { enabled: isAuthorized && !isMovie && !!episodeId, queryKey: getGetAnimeEpisodeQueryKey(episodeId) },
   });
   const { data: seriesData, isLoading: seriesLoading } = useGetAnimeSeries(seriesSlug, {
-    query: { enabled: !!seriesSlug, queryKey: getGetAnimeSeriesQueryKey(seriesSlug) },
+    query: { enabled: isAuthorized && !!seriesSlug, queryKey: getGetAnimeSeriesQueryKey(seriesSlug) },
   });
   const { data: recData } = useSearchAnime(
     { q: recKeyword },
-    { query: { enabled: recKeyword.length >= 2, queryKey: getSearchAnimeQueryKey({ q: recKeyword }) } }
+    { query: { enabled: isAuthorized && recKeyword.length >= 2, queryKey: getSearchAnimeQueryKey({ q: recKeyword }) } }
   );
 
   const { items: bookmarkItems } = useBookmarks();
@@ -665,6 +668,15 @@ export default function Watch() {
   const nextEpTitle = nextEp
     ? (nextEp.title ?? `Episode ${nextEp.number}`)
     : `Episode ${parseInt(episodeNum) + 1}`;
+
+  // Block render until Clerk has resolved — prevents flash of protected UI
+  if (!authLoaded || !isAuthorized) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white/30" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-foreground flex flex-col relative overflow-hidden">

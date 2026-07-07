@@ -1,2 +1,3 @@
-/api/* https://anime-streamer--errorappsgeyser.replit.app/api/:splat 200!
+# SPA fallback is handled by netlify.toml (root) for Netlify deployments.
+# This file is kept as a reference for other static hosts.
 /* /index.html 200
