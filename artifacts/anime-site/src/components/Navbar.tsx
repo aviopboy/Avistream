@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Menu, X, Tv, Settings, User, LogIn } from "lucide-react";
-import { useUser, useClerk, Show } from "@clerk/react";
+import { Search, Menu, X, Tv, Settings, User, LogIn, Tag, ChevronDown } from "lucide-react";
+import { useAuth, useUser, useClerk } from "@clerk/react";
 import { useSearchAnime, getSearchAnimeQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -13,6 +13,15 @@ const NAV_LINKS = [
   { href: "/anime", label: "Anime" },
   { href: "/movies", label: "Movies" },
 ];
+
+const POPULAR_GENRES = [
+  "Action", "Adventure", "Comedy", "Drama", "Fantasy",
+  "Horror", "Isekai", "Mecha", "Mystery", "Romance",
+  "Sci-Fi", "Shounen", "Shoujo", "Slice of Life", "Supernatural",
+  "Sports", "Thriller", "Martial Arts", "School", "Historical",
+];
+
+type SearchResult = { slug: string; image?: string | null; title: string };
 
 type NavbarProps = {
   settingsOpen: boolean;
@@ -49,12 +58,77 @@ function NavAvatar() {
   );
 }
 
+// Genres dropdown for desktop
+function GenresDropdown({ isActive }: { isActive: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 px-3.5 py-1.5 rounded-md text-sm font-semibold transition-all cursor-pointer"
+        style={{
+          color: isActive ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
+          background: isActive ? "hsl(var(--primary) / 0.12)" : "transparent",
+        }}
+      >
+        Genres
+        <ChevronDown
+          className="w-3.5 h-3.5 transition-transform"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-2 w-56 rounded-xl overflow-hidden shadow-2xl z-50"
+          style={{
+            background: "hsl(var(--card))",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <div className="p-2 grid grid-cols-2 gap-0.5">
+            {POPULAR_GENRES.map((g) => (
+              <button
+                key={g}
+                onClick={() => {
+                  setLocation(`/genre/${encodeURIComponent(g)}`);
+                  setOpen(false);
+                }}
+                className="text-left px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-white/8 truncate"
+                style={{ color: "hsl(var(--muted-foreground))" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "hsl(var(--muted-foreground))"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: NavbarProps) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileGenresOpen, setMobileGenresOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { signOut } = useClerk();
+  const { isSignedIn, isLoaded } = useAuth();
 
   const debouncedQ = useDebounce(query, 350);
   const { data: searchData } = useSearchAnime(
@@ -84,6 +158,8 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
     if (href === "/") return location === "/";
     return location.startsWith(href);
   }
+
+  const isGenreActive = location.startsWith("/genre");
 
   return (
     <>
@@ -116,10 +192,24 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
               </span>
             </Link>
           ))}
+          {/* Genres dropdown */}
+          <GenresDropdown isActive={isGenreActive} />
         </div>
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Desktop search */}
+          <div className="hidden md:block relative">
+            <DesktopSearch
+              query={query}
+              setQuery={setQuery}
+              results={results}
+              debouncedQ={debouncedQ}
+              onSelect={handleSelect}
+              onSubmit={handleSubmit}
+            />
+          </div>
+
           {/* Mobile search toggle */}
           <button
             onClick={() => { setMobileSearchOpen((v) => !v); setMobileOpen(false); }}
@@ -132,8 +222,8 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
 
           {/* Auth buttons — desktop */}
           <div className="hidden md:flex items-center gap-1.5">
-            {/* Signed in: avatar → account page */}
-            <Show when="signed-in">
+            {/* Show account when signed in */}
+            {isLoaded && isSignedIn ? (
               <Link href="/account">
                 <button
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all border"
@@ -143,20 +233,29 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
                   <span className="text-white/70">Account</span>
                 </button>
               </Link>
-            </Show>
-
-            {/* Signed out: sign-in button */}
-            <Show when="signed-out">
-              <Link href="/sign-in">
-                <button
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
-                  style={{ background: "hsl(var(--primary))", color: "#fff" }}
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Sign in</span>
-                </button>
-              </Link>
-            </Show>
+            ) : (
+              /* Show sign-in by default (also during Clerk loading) */
+              <>
+                <Link href="/sign-in">
+                  <button
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all"
+                    style={{ background: "hsl(var(--primary))", color: "#fff" }}
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Sign in</span>
+                  </button>
+                </Link>
+                <Link href="/sign-up">
+                  <button
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border"
+                    style={{ background: "transparent", borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)" }}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Register</span>
+                  </button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Settings */}
@@ -217,7 +316,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
           {results.length > 0 && debouncedQ.length > 1 && (
             <div className="mt-2 rounded-xl overflow-hidden overflow-y-auto max-h-[50vh]"
               style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-              {results.map((r) => (
+              {results.map((r: SearchResult) => (
                 <button key={r.slug} onClick={() => handleSelect(r.slug)}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 border-b border-white/5 last:border-0 active:bg-white/10">
                   <div className="w-10 h-14 rounded-md overflow-hidden flex-shrink-0 bg-white/10">
@@ -249,6 +348,42 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
             </Link>
           ))}
 
+          {/* Genres expandable section */}
+          <div>
+            <button
+              onClick={() => setMobileGenresOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-all"
+              style={{
+                color: isGenreActive ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
+                background: isGenreActive ? "hsl(var(--primary) / 0.12)" : "transparent",
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <Tag className="w-4 h-4" /> Genres
+              </span>
+              <ChevronDown
+                className="w-4 h-4 transition-transform"
+                style={{ transform: mobileGenresOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+            {mobileGenresOpen && (
+              <div className="mt-1 ml-4 flex flex-wrap gap-1.5 px-2 pb-2">
+                {POPULAR_GENRES.map((g) => (
+                  <Link key={g} href={`/genre/${encodeURIComponent(g)}`} onClick={() => setMobileOpen(false)}>
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-all"
+                      style={location.startsWith(`/genre/${encodeURIComponent(g)}`)
+                        ? { background: "hsl(var(--primary))", color: "#fff" }
+                        : { background: "hsl(var(--secondary))", color: "hsl(var(--muted-foreground))", border: "1px solid hsl(var(--border))" }}
+                    >
+                      {g}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="mt-2 pt-2 border-t flex flex-col gap-1" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
             <button
               onClick={() => { setMobileOpen(false); onSettingsToggle(); }}
@@ -258,38 +393,101 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
             </button>
 
             {/* Signed in: account link */}
-            <Show when="signed-in">
-              <Link href="/account" onClick={() => setMobileOpen(false)}>
-                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer"
-                  style={{ color: "hsl(var(--muted-foreground))" }}>
-                  <NavAvatar /> Account
-                </span>
-              </Link>
-              <button
-                onClick={() => { setMobileOpen(false); signOut({ redirectUrl: basePath || "/" }); }}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left text-red-400/80">
-                <LogIn className="w-4 h-4 rotate-180" /> Sign out
-              </button>
-            </Show>
-
-            {/* Signed out: sign-in link */}
-            <Show when="signed-out">
-              <Link href="/sign-in" onClick={() => setMobileOpen(false)}>
-                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
-                  style={{ color: "hsl(var(--primary))" }}>
-                  <LogIn className="w-4 h-4" /> Sign in
-                </span>
-              </Link>
-              <Link href="/sign-up" onClick={() => setMobileOpen(false)}>
-                <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
-                  style={{ color: "hsl(var(--muted-foreground))" }}>
-                  <User className="w-4 h-4" /> Create account
-                </span>
-              </Link>
-            </Show>
+            {isLoaded && isSignedIn ? (
+              <>
+                <Link href="/account" onClick={() => setMobileOpen(false)}>
+                  <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    <NavAvatar /> Account
+                  </span>
+                </Link>
+                <button
+                  onClick={() => { setMobileOpen(false); signOut({ redirectUrl: basePath || "/" }); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left text-red-400/80">
+                  <LogIn className="w-4 h-4 rotate-180" /> Sign out
+                </button>
+              </>
+            ) : (
+              /* Show sign-in/register by default (also during Clerk loading) */
+              <>
+                <Link href="/sign-in" onClick={() => setMobileOpen(false)}>
+                  <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
+                    style={{ color: "hsl(var(--primary))" }}>
+                    <LogIn className="w-4 h-4" /> Sign in
+                  </span>
+                </Link>
+                <Link href="/sign-up" onClick={() => setMobileOpen(false)}>
+                  <span className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold cursor-pointer"
+                    style={{ color: "hsl(var(--muted-foreground))" }}>
+                    <User className="w-4 h-4" /> Create account
+                  </span>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
     </>
+  );
+}
+
+// ── Desktop search bar extracted as a component ──────────────────────────────
+function DesktopSearch({
+  query, setQuery, results, debouncedQ, onSelect, onSubmit,
+}: {
+  query: string;
+  setQuery: (v: string) => void;
+  results: SearchResult[];
+  debouncedQ: string;
+  onSelect: (slug: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <form onSubmit={onSubmit} className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          placeholder="Search anime..."
+          className="w-44 focus:w-60 transition-all duration-200 pl-8 pr-8 py-1.5 text-xs rounded-lg outline-none"
+          style={{
+            background: "hsl(var(--secondary))",
+            border: "1px solid hsl(var(--border))",
+            color: "hsl(var(--foreground))",
+          }}
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors">
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {focused && results.length > 0 && debouncedQ.length > 1 && (
+        <div
+          className="absolute top-full right-0 mt-1.5 w-72 rounded-xl overflow-hidden overflow-y-auto max-h-80 shadow-2xl"
+          style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", zIndex: 9999 }}
+        >
+          {results.map((r) => (
+            <button key={r.slug} onClick={() => onSelect(r.slug)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5 border-b border-white/5 last:border-0">
+              <div className="w-8 h-11 rounded-md overflow-hidden flex-shrink-0 bg-white/10">
+                {r.image
+                  ? <img src={r.image} alt="" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center"><Tv className="w-3 h-3 text-white/30" /></div>}
+              </div>
+              <span className="text-xs font-medium text-foreground line-clamp-2">{r.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </form>
   );
 }

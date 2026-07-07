@@ -472,7 +472,7 @@ export default function Watch() {
     const dest = base && fullPath.startsWith(base) ? fullPath.slice(base.length) || "/" : fullPath;
     if (!user) {
       sessionStorage.setItem("avistream_next", dest);
-      setLocation("/sign-in");
+      setLocation("/sign-up");
     } else if (!user.unsafeMetadata?.onboardingComplete) {
       sessionStorage.setItem("avistream_next", dest);
       setLocation("/onboarding");
