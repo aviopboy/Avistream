@@ -16,8 +16,8 @@
   publish  = "artifacts/anime-site/dist/public"
 
 [build.environment]
-  NODE_VERSION = "20"
-  PNPM_VERSION = "9"
+  NODE_VERSION = "24"
+  PNPM_VERSION = "10"
   # BASE_PATH must be "/" for a Netlify root deployment (no sub-path prefix).
   BASE_PATH = "/"
   # PORT is unused at build time; a value is required to satisfy vite.config.ts.
