@@ -1,4 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { SYNC_EVENT } from "./use-watch-progress";
+import { load, persist } from "./use-bookmarks-storage";
 
 export type Bookmark = {
   id: string;
@@ -13,18 +15,10 @@ export type Bookmark = {
   savedAt: number;
 };
 
-const KEY = "avistream_bookmarks";
+export { load, persist };
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
-}
-
-function load(): Bookmark[] {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? "[]") as Bookmark[]; } catch { return []; }
-}
-
-function persist(items: Bookmark[]) {
-  try { localStorage.setItem(KEY, JSON.stringify(items)); } catch { /* ignore */ }
 }
 
 export function useBookmarks() {
@@ -32,10 +26,19 @@ export function useBookmarks() {
 
   const refresh = useCallback(() => setItems(load()), []);
 
-  const addBookmark = useCallback((b: Omit<Bookmark, "id" | "savedAt">) => {
-    const next = [{ ...b, id: uid(), savedAt: Date.now() }, ...load()];
+  // Re-read from localStorage when cloud sync merges data or clears bookmarks
+  useEffect(() => {
+    const handler = () => setItems(load());
+    window.addEventListener(SYNC_EVENT, handler);
+    return () => window.removeEventListener(SYNC_EVENT, handler);
+  }, []);
+
+  const addBookmark = useCallback((b: Omit<Bookmark, "id" | "savedAt">): Bookmark => {
+    const newBookmark: Bookmark = { ...b, id: uid(), savedAt: Date.now() };
+    const next = [newBookmark, ...load()];
     persist(next);
     setItems(next);
+    return newBookmark;
   }, []);
 
   const removeBookmark = useCallback((id: string) => {

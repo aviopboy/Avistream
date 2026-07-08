@@ -1,4 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+
+/** Fired by UserDataProvider after cloud sync or clear so all consumers refresh. */
+export const SYNC_EVENT = "avistream:data-synced";
+import { load, persist } from "./use-watch-progress-storage";
 
 export type ProgressEntry = {
   episodeId: string;
@@ -13,18 +17,10 @@ export type ProgressEntry = {
   savedAt: number;
 };
 
-const KEY = "avistream_progress";
+export { load, persist };
+
 export const DEFAULT_DURATION = 1440; // 24 min — typical anime episode
 export const WATCHED_THRESHOLD = 0.85; // 85% = counts as watched
-
-function load(): Record<string, ProgressEntry> {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, ProgressEntry>; }
-  catch { return {}; }
-}
-
-function persist(data: Record<string, ProgressEntry>) {
-  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /**/ }
-}
 
 export function saveProgress(entry: Omit<ProgressEntry, "savedAt">) {
   const data = load();
@@ -73,6 +69,13 @@ export function useWatchProgress() {
   const [data, setData] = useState<Record<string, ProgressEntry>>(load);
 
   const refresh = useCallback(() => setData(load()), []);
+
+  // Re-read from localStorage when cloud sync merges data or clears history
+  useEffect(() => {
+    const handler = () => setData(load());
+    window.addEventListener(SYNC_EVENT, handler);
+    return () => window.removeEventListener(SYNC_EVENT, handler);
+  }, []);
 
   const entries = Object.values(data).sort((a, b) => b.savedAt - a.savedAt);
   const inProgress = entries.filter((e) => {

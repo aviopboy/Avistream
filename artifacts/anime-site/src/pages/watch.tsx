@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { addRecentWatched } from "@/hooks/use-recent-watched";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import type { Bookmark as BookmarkType } from "@/hooks/use-bookmarks";
+import { useUserData } from "@/hooks/use-user-data";
 import {
   saveProgress, getProgress, markWatched,
   DEFAULT_DURATION, WATCHED_THRESHOLD, isWatched, getProgressPct,
@@ -80,6 +81,7 @@ function BookmarkPanel({
   onClose: () => void;
 }) {
   const { items, addBookmark, removeBookmark, updateBookmark } = useBookmarks();
+  const { pushBookmark, removeBookmark: cloudRemove, updateBookmark: cloudUpdate } = useUserData();
   const epBookmarks = items.filter((b) => b.episodeId === episodeId);
 
   const [adding, setAdding] = useState(false);
@@ -93,7 +95,8 @@ function BookmarkPanel({
 
   const handleAdd = () => {
     const ts = parseTimestamp(tsInput.trim() || "0:00");
-    addBookmark({ episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum, timestamp: ts });
+    const newBookmark = addBookmark({ episodeId, seriesSlug, seriesTitle, seriesImage, episodeTitle, season, episodeNum, timestamp: ts });
+    pushBookmark(newBookmark);
     setAdding(false);
     setTsInput("0:00");
   };
@@ -181,8 +184,8 @@ function BookmarkPanel({
             {epBookmarks.map((b) => (
               <BookmarkRow key={b.id} bookmark={b}
                 onPlay={() => onPlay(b.timestamp)}
-                onDelete={() => removeBookmark(b.id)}
-                onEdit={(ts) => updateBookmark(b.id, ts)}
+                onDelete={() => { removeBookmark(b.id); cloudRemove(b.id); }}
+                onEdit={(ts) => { updateBookmark(b.id, ts); cloudUpdate(b.id, ts); }}
                 onShare={() => copyShareLink(b.timestamp)} />
             ))}
           </div>
@@ -530,6 +533,9 @@ export default function Watch() {
 
   const { items: bookmarkItems } = useBookmarks();
   const epBookmarkCount = bookmarkItems.filter((b) => b.episodeId === baseEpisodeId).length;
+  const { pushProgress } = useUserData();
+  const pushProgressRef = useRef(pushProgress);
+  useEffect(() => { pushProgressRef.current = pushProgress; }, [pushProgress]);
 
   const episode = episodeResponse?.data;
   const seriesInfo = seriesData?.data;
@@ -580,7 +586,7 @@ export default function Watch() {
     let lastTick = Date.now();
 
     const doSave = () => {
-      saveProgress({
+      const entry = {
         episodeId: baseEpisodeId,
         seriesSlug,
         seriesTitle: title,
@@ -590,7 +596,9 @@ export default function Watch() {
         episodeTitle,
         position: positionRef.current,
         duration: DEFAULT_DURATION,
-      });
+      };
+      saveProgress(entry);
+      pushProgressRef.current({ ...entry, savedAt: Date.now() });
       lastSavePositionRef.current = positionRef.current;
     };
 

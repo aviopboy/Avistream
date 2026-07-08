@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, Menu, X, Tv, Settings, User, LogIn, Tag, ChevronDown } from "lucide-react";
+import { Search, Menu, X, Tv, Settings, User, LogIn, Tag, ChevronDown, Clock } from "lucide-react";
 import { useAuth, useUser, useClerk } from "@clerk/react";
 import { useSearchAnime, getSearchAnimeQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { SettingsModal } from "@/components/SettingsModal";
+import { useUserData } from "@/hooks/use-user-data";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -129,6 +130,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
   const [query, setQuery] = useState("");
   const { signOut } = useClerk();
   const { isSignedIn, isLoaded } = useAuth();
+  const { searchHistory, pushSearch } = useUserData();
 
   const debouncedQ = useDebounce(query, 350);
   const { data: searchData } = useSearchAnime(
@@ -146,8 +148,10 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (query.trim().length > 1) {
-      setLocation(`/anime?q=${encodeURIComponent(query.trim())}`);
+    const q = query.trim();
+    if (q.length > 1) {
+      pushSearch(q);
+      setLocation(`/anime?q=${encodeURIComponent(q)}`);
       setQuery("");
       setMobileSearchOpen(false);
       setMobileOpen(false);
@@ -207,6 +211,11 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
               debouncedQ={debouncedQ}
               onSelect={handleSelect}
               onSubmit={handleSubmit}
+              recentSearches={searchHistory.slice(0, 5)}
+              onSearchSelect={(q) => {
+                pushSearch(q);
+                setLocation(`/anime?q=${encodeURIComponent(q)}`);
+              }}
             />
           </div>
 
@@ -433,7 +442,7 @@ export function Navbar({ settingsOpen, onSettingsToggle, onSettingsClose }: Navb
 
 // ── Desktop search bar extracted as a component ──────────────────────────────
 function DesktopSearch({
-  query, setQuery, results, debouncedQ, onSelect, onSubmit,
+  query, setQuery, results, debouncedQ, onSelect, onSubmit, recentSearches, onSearchSelect,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -441,8 +450,12 @@ function DesktopSearch({
   debouncedQ: string;
   onSelect: (slug: string) => void;
   onSubmit: (e: React.FormEvent) => void;
+  recentSearches?: string[];
+  onSearchSelect?: (q: string) => void;
 }) {
   const [focused, setFocused] = useState(false);
+  const showRecent = focused && query.length === 0 && (recentSearches?.length ?? 0) > 0;
+  const showResults = focused && results.length > 0 && debouncedQ.length > 1;
 
   return (
     <form onSubmit={onSubmit} className="relative">
@@ -470,7 +483,27 @@ function DesktopSearch({
         )}
       </div>
 
-      {focused && results.length > 0 && debouncedQ.length > 1 && (
+      {/* Recent searches dropdown */}
+      {showRecent && (
+        <div
+          className="absolute top-full right-0 mt-1.5 w-72 rounded-xl overflow-hidden shadow-2xl"
+          style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", zIndex: 9999 }}
+        >
+          <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">
+            Recent searches
+          </p>
+          {recentSearches!.map((q) => (
+            <button key={q} type="button" onClick={() => { setQuery(q); onSearchSelect?.(q); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5 border-t border-white/5">
+              <Clock className="w-3.5 h-3.5 flex-shrink-0 text-white/25" />
+              <span className="text-xs font-medium text-white/70 truncate">{q}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Live search results dropdown */}
+      {showResults && (
         <div
           className="absolute top-full right-0 mt-1.5 w-72 rounded-xl overflow-hidden overflow-y-auto max-h-80 shadow-2xl"
           style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", zIndex: 9999 }}

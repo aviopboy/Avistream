@@ -17,6 +17,7 @@ import Genre from "@/pages/genre";
 import Account from "@/pages/account";
 import Onboarding from "@/pages/onboarding";
 import { useTheme, ThemeContext, applyTheme } from "@/hooks/use-theme";
+import { UserDataProvider } from "@/hooks/use-user-data";
 
 const queryClient = new QueryClient();
 
@@ -216,8 +217,10 @@ function ClerkProviderWithRoutes() {
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           <ThemeProvider>
-            <Layout />
-            <Toaster />
+            <UserDataProvider>
+              <Layout />
+              <Toaster />
+            </UserDataProvider>
           </ThemeProvider>
         </TooltipProvider>
       </QueryClientProvider>
